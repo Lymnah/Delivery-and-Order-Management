@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   format,
   addDays,
@@ -35,15 +35,15 @@ import 'dayjs/locale/fr';
 import type { Dayjs } from 'dayjs';
 import svgPaths from '../imports/svg-386lc3yi7f';
 import svgPathsStock from '../imports/svg-gt4hwy99w6';
-import imgCarrefour from 'figma:asset/82264df74cfb0ad9b8b7d222f17c9903ba0ef774.png';
-import imgAuchan from 'figma:asset/7fb2f94785e10950b962ede3941d2b615170f658.png';
-import imgLeclerc from 'figma:asset/f72a75971070d98086cdb19e75c4fe4c0de8edf3.png';
-import imgTapenadeNoire from 'figma:asset/7b3bace636aba0fb32604a1efef4140fb7db3077.png';
-import imgTapenadeVerte from 'figma:asset/aeb8c4358018be24093d429390d51278634999d8.png';
-import imgHoumous from 'figma:asset/434619f1f07e4da164f7ecb61a856dded404bd25.png';
-import imgCaviarAubergine from 'figma:asset/b33ff9fe02b99a84530aff012ca66d0eee689eaa.png';
-import imgTapenadeViolette from 'figma:asset/1214629e3bb633d2a325885b8175cfb7c4d8f43f.png';
-import imgTzatziki from 'figma:asset/f4b9c2546699f16007b2437a15c440b7f521c550.png';
+import imgCarrefour from '../assets/82264df74cfb0ad9b8b7d222f17c9903ba0ef774.png';
+import imgAuchan from '../assets/7fb2f94785e10950b962ede3941d2b615170f658.png';
+import imgLeclerc from '../assets/f72a75971070d98086cdb19e75c4fe4c0de8edf3.png';
+import imgTapenadeNoire from '../assets/7b3bace636aba0fb32604a1efef4140fb7db3077.png';
+import imgTapenadeVerte from '../assets/aeb8c4358018be24093d429390d51278634999d8.png';
+import imgHoumous from '../assets/434619f1f07e4da164f7ecb61a856dded404bd25.png';
+import imgCaviarAubergine from '../assets/b33ff9fe02b99a84530aff012ca66d0eee689eaa.png';
+import imgTapenadeViolette from '../assets/1214629e3bb633d2a325885b8175cfb7c4d8f43f.png';
+import imgTzatziki from '../assets/f4b9c2546699f16007b2437a15c440b7f521c550.png';
 
 // Set dayjs locale globally
 dayjs.locale('fr');
@@ -135,17 +135,21 @@ const products: Product[] = [
   },
 ];
 
-// Date de référence : 16 décembre 2026
-const NOW = new Date(2026, 11, 16); // months are 0-indexed
+// Fonction pour obtenir la date actuelle (minuit)
+const getToday = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
 
 const orders: Order[] = [
-  // BC 1 - 3 produits (dans 5 jours après le 16 déc = 21 déc)
+  // BC 1 - 3 produits (dans 3 jours)
   {
     id: '1',
     number: 'BC-2024-001',
     type: 'BC',
     client: 'Carrefour',
-    deliveryDate: addDays(NOW, 5),
+    deliveryDate: addDays(NOW, 3),
     createdAt: addDays(NOW, -5),
     items: [
       { productId: '1', quantity: 100 },
@@ -154,13 +158,13 @@ const orders: Order[] = [
     ],
     totalHT: 1500,
   },
-  // BL 2 - 5 produits (dans 10 jours après le 16 déc = 26 déc)
+  // BL 2 - 5 produits (dans 1 semaine)
   {
     id: '2',
     number: 'BL-2024-045',
     type: 'BL',
     client: 'Auchan',
-    deliveryDate: addDays(NOW, 10),
+    deliveryDate: addDays(NOW, 7),
     createdAt: addDays(NOW, -2),
     items: [
       { productId: '1', quantity: 80 }, // Partagé avec BC1
@@ -171,13 +175,13 @@ const orders: Order[] = [
     ],
     totalHT: 2000,
   },
-  // BC 3 - 4 produits (dans 15 jours après le 16 déc = 31 déc)
+  // BC 3 - 4 produits (dans 2 semaines)
   {
     id: '3',
     number: 'BC-2024-002',
     type: 'BC',
     client: 'Leclerc',
-    deliveryDate: addDays(NOW, 15),
+    deliveryDate: addDays(NOW, 14),
     createdAt: NOW,
     items: [
       { productId: '2', quantity: 100 },
@@ -187,13 +191,13 @@ const orders: Order[] = [
     ],
     totalHT: 1800,
   },
-  // BC 4 - Auchan (31 déc - même jour que BC3)
+  // BC 4 - Auchan (même jour que BC3)
   {
     id: '4',
     number: 'BC-2024-003',
     type: 'BC',
     client: 'Auchan',
-    deliveryDate: addDays(NOW, 15), // 31 déc 2026
+    deliveryDate: addDays(NOW, 14),
     createdAt: addDays(NOW, -3),
     items: [
       { productId: '1', quantity: 120 }, // Tapenade Noire
@@ -202,13 +206,13 @@ const orders: Order[] = [
     ],
     totalHT: 2200,
   },
-  // BC 5 - Carrefour (31 déc - même jour que BC3 et BC4)
+  // BC 5 - Carrefour (même jour que BC3 et BC4)
   {
     id: '5',
     number: 'BC-2024-004',
     type: 'BC',
     client: 'Carrefour',
-    deliveryDate: addDays(NOW, 15), // 31 déc 2026
+    deliveryDate: addDays(NOW, 14),
     createdAt: addDays(NOW, -1),
     items: [
       { productId: '2', quantity: 90 }, // Tapenade Verte (partagé avec BC3 et BC4)
@@ -217,13 +221,13 @@ const orders: Order[] = [
     ],
     totalHT: 1950,
   },
-  // BC 6 - Leclerc (29 déc 2026)
+  // BC 6 - Leclerc (fin janvier 2026)
   {
     id: '6',
     number: 'BC-2024-005',
     type: 'BC',
     client: 'Leclerc',
-    deliveryDate: addDays(NOW, 13), // 29 déc 2026
+    deliveryDate: new Date(2026, 0, 31), // 31 janvier 2026
     createdAt: addDays(NOW, -4),
     items: [
       { productId: '1', quantity: 95 }, // Tapenade Noire
@@ -232,13 +236,13 @@ const orders: Order[] = [
     ],
     totalHT: 1750,
   },
-  // BC 7 - Auchan (29 déc 2026)
+  // BC 7 - Auchan (février 2026)
   {
     id: '7',
     number: 'BC-2024-006',
     type: 'BC',
     client: 'Auchan',
-    deliveryDate: addDays(NOW, 13), // 29 déc 2026
+    deliveryDate: new Date(2026, 1, 15), // 15 février 2026
     createdAt: addDays(NOW, -2),
     items: [
       { productId: '2', quantity: 110 }, // Tapenade Verte
@@ -247,13 +251,13 @@ const orders: Order[] = [
     ],
     totalHT: 2100,
   },
-  // BL 8 - Carrefour (29 déc 2026)
+  // BL 8 - Carrefour (mars 2026)
   {
     id: '8',
     number: 'BL-2024-046',
     type: 'BL',
     client: 'Carrefour',
-    deliveryDate: addDays(NOW, 13), // 29 déc 2026
+    deliveryDate: new Date(2026, 2, 10), // 10 mars 2026
     createdAt: addDays(NOW, -6),
     items: [
       { productId: '1', quantity: 130 }, // Tapenade Noire
@@ -263,13 +267,13 @@ const orders: Order[] = [
     ],
     totalHT: 2450,
   },
-  // BL 9 - Leclerc (29 déc 2026)
+  // BL 9 - Leclerc (avril 2026)
   {
     id: '9',
     number: 'BL-2024-047',
     type: 'BL',
     client: 'Leclerc',
-    deliveryDate: addDays(NOW, 13), // 29 déc 2026
+    deliveryDate: new Date(2026, 3, 5), // 5 avril 2026
     createdAt: addDays(NOW, -3),
     items: [
       { productId: '3', quantity: 200 }, // Houmous Original
@@ -277,6 +281,35 @@ const orders: Order[] = [
       { productId: '6', quantity: 50 }, // Tzatziki
     ],
     totalHT: 1900,
+  },
+  // Commandes supplémentaires pour couvrir jusqu'à juin 2026
+  {
+    id: '10',
+    number: 'BC-2024-007',
+    type: 'BC',
+    client: 'Carrefour',
+    deliveryDate: new Date(2026, 4, 20), // 20 mai 2026
+    createdAt: addDays(NOW, -1),
+    items: [
+      { productId: '1', quantity: 150 },
+      { productId: '3', quantity: 200 },
+      { productId: '4', quantity: 100 },
+    ],
+    totalHT: 2500,
+  },
+  {
+    id: '11',
+    number: 'BL-2024-048',
+    type: 'BL',
+    client: 'Auchan',
+    deliveryDate: new Date(2026, 5, 15), // 15 juin 2026
+    createdAt: NOW,
+    items: [
+      { productId: '2', quantity: 120 },
+      { productId: '5', quantity: 100 },
+      { productId: '6', quantity: 80 },
+    ],
+    totalHT: 1800,
   },
 ];
 
@@ -333,6 +366,37 @@ function HomeIndicator() {
 }
 
 export default function App() {
+  // Date actuelle (real-time) - mise à jour chaque jour à minuit
+  const [now, setNow] = useState(getToday());
+
+  // Mettre à jour la date actuelle chaque jour à minuit
+  useEffect(() => {
+    const updateDate = () => {
+      setNow(getToday());
+    };
+
+    // Mettre à jour immédiatement
+    updateDate();
+
+    // Calculer le temps jusqu'à minuit prochain
+    const getMsUntilMidnight = () => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      return tomorrow.getTime() - Date.now();
+    };
+
+    // Programmer la mise à jour à minuit
+    const timeoutId = setTimeout(() => {
+      updateDate();
+      // Ensuite, mettre à jour toutes les heures pour être sûr
+      const intervalId = setInterval(updateDate, 60 * 60 * 1000);
+      return () => clearInterval(intervalId);
+    }, getMsUntilMidnight());
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [mode, setMode] = useState<'clients' | 'products'>('clients');
   const [activeMode, setActiveMode] = useState<'period' | 'documents'>(
@@ -343,7 +407,7 @@ export default function App() {
   const [selectedProductsInOrder, setSelectedProductsInOrder] = useState<
     string[]
   >([]);
-  const [currentDate, setCurrentDate] = useState(addDays(NOW, 7)); // Semaine à venir (J+7)
+  const [currentDate, setCurrentDate] = useState(addDays(now, 7)); // Semaine à venir (J+7) - basé sur la date actuelle
   const [timeRange, setTimeRange] = useState<
     'week' | 'month' | 'custom' | 'documents'
   >('week');
@@ -446,7 +510,7 @@ export default function App() {
 
   const getDaysUntil = (date: Date) => {
     const diff = Math.ceil(
-      (date.getTime() - NOW.getTime()) / (1000 * 60 * 60 * 24)
+      (date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
     );
     return diff;
   };
@@ -1226,11 +1290,6 @@ export default function App() {
                             {order.items.length > 1 ? 's' : ''} • {totalQty}{' '}
                             unités
                           </p>
-
-                          {/* Line 4: Order amount */}
-                          <p className='font-bold text-[18px] text-gray-900'>
-                            {order.totalHT.toLocaleString('fr-FR')}€
-                          </p>
                         </div>
                       </div>
                     </div>
@@ -1325,7 +1384,7 @@ export default function App() {
                     <div className='space-y-2'>
                       {getDaysInRange().map((day) => {
                         const dayOrders = getOrdersForDate(day);
-                        const isToday = isSameDay(day, NOW);
+                        const isToday = isSameDay(day, now);
 
                         return (
                           <div
@@ -1582,14 +1641,6 @@ export default function App() {
                                               ? 's'
                                               : ''}{' '}
                                             • {totalQty} unités
-                                          </p>
-
-                                          {/* Line 4: Order amount */}
-                                          <p className='font-bold text-[18px] text-gray-900'>
-                                            {order.totalHT.toLocaleString(
-                                              'fr-FR'
-                                            )}
-                                            €
                                           </p>
                                         </div>
                                       </div>
@@ -2039,11 +2090,6 @@ export default function App() {
                           {order.items.length > 1 ? 's' : ''} différent
                           {order.items.length > 1 ? 's' : ''} • {totalQty}{' '}
                           unités
-                        </p>
-
-                        {/* Line 4: Order amount */}
-                        <p className='font-bold text-[18px] text-gray-900'>
-                          {order.totalHT.toLocaleString('fr-FR')}€
                         </p>
                       </div>
                     </div>

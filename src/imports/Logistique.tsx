@@ -1,6 +1,6 @@
 import svgPaths from "./svg-p60lyl9051";
-import imgContent from "figma:asset/12ce1b9c25cc8b1d301adad48242561ecdad36a4.png";
-import imgRectangle from "figma:asset/99cad97ab0027735cc0733819e76354dff29b254.png";
+import imgContent from "../assets/12ce1b9c25cc8b1d301adad48242561ecdad36a4.png";
+import imgRectangle from "../assets/99cad97ab0027735cc0733819e76354dff29b254.png";
 
 function Frame2() {
   return (
