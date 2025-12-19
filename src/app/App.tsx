@@ -593,7 +593,7 @@ export default function App() {
                   onClick={() => {
                     setMode('products');
                     setActiveMode('period');
-                    setTimeRange('all');
+                    // Conserver le filtre actif (timeRange et filterReferenceDate)
                   }}
                   className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
                     mode === 'products'
