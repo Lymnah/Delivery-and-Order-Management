@@ -566,493 +566,725 @@ export default function App() {
       ) : currentView === 'logistique-commandes' ? (
         // Vue Commandes - Sections par jour + Bouton bascule Liste/Calendrier + Filtres rapides
         <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
-          <div className='absolute bg-white top-[87px] left-0 w-[393px] h-[691px] overflow-y-auto px-4 pt-4 pb-7'>
-            {/* Back button */}
-            <button
-              onClick={() => setCurrentView('logistique-selection')}
-              className='flex items-center gap-2 text-[#12895a] mb-3 -ml-2 px-2 py-1 hover:bg-gray-100 rounded transition-all'
-            >
-              <ChevronLeft className='w-5 h-5' />
-              <span className='text-[14px] font-semibold'>Retour</span>
-            </button>
+          <div
+            className={`absolute bg-white top-[87px] left-0 w-[393px] h-[691px] px-4 pt-4 ${
+              mode === 'clients' && showOrderDetailsPage && selectedOrder
+                ? 'flex flex-col overflow-hidden'
+                : 'overflow-y-auto pb-7'
+            }`}
+          >
+            {/* Order Details Page - Full page view */}
+            {mode === 'clients' && showOrderDetailsPage && selectedOrder ? (
+              <div className='flex flex-col h-full min-h-0'>
+                {/* Fixed Header Section */}
+                <div className='flex-shrink-0 bg-white'>
+                  {/* Back button */}
+                  <button
+                    onClick={() => {
+                      setShowOrderDetailsPage(false);
+                      setSelectedOrder(null);
+                      setSelectedProductsInOrder([]);
+                    }}
+                    className='flex items-center gap-2 text-[#12895a] mb-3 -ml-2 px-2 py-1 hover:bg-gray-100 rounded transition-all'
+                  >
+                    <ChevronLeft className='w-5 h-5' />
+                    <span className='text-[14px] font-semibold'>Retour</span>
+                  </button>
 
-            {/* Header avec bouton bascule Liste/Calendrier et Mode */}
-            <div className='flex items-center justify-between mb-4'>
-              <div className='flex gap-2'>
-                <button
-                  onClick={() => setMode('clients')}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
-                    mode === 'clients'
-                      ? 'bg-[#12895a] text-white'
-                      : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  Commandes
-                </button>
-                <button
-                  onClick={() => {
-                    setMode('products');
-                    setActiveMode('period');
-                    // Conserver le filtre actif (timeRange et filterReferenceDate)
-                  }}
-                  className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
-                    mode === 'products'
-                      ? 'bg-[#12895a] text-white'
-                      : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  Produits
-                </button>
-              </div>
-              {mode === 'clients' && (
-                <button
-                  onClick={() => setView(view === 'list' ? 'calendar' : 'list')}
-                  className='flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#12895a] text-white text-[12px] font-semibold hover:bg-[#107a4d] transition-colors'
-                >
-                  {view === 'list' ? (
-                    <>
-                      <CalendarIcon className='w-4 h-4' />
-                      Calendrier
-                    </>
-                  ) : (
-                    <>
-                      <ListIcon className='w-4 h-4' />
-                      Liste
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-
-            {mode === 'products' ? (
-              <div>
-                {/* Filtres rapides pour produits */}
-                <div className='mb-4'>
-                  <div className='flex gap-2 mb-2 overflow-x-auto pb-2'>
-                    {[
-                      { key: 'all', label: 'Tout' },
-                      { key: 'today', label: "Aujourd'hui" },
-                      { key: 'week', label: 'Cette semaine' },
-                      { key: 'month', label: 'Ce mois' },
-                    ].map((filter) => (
-                      <button
-                        key={filter.key}
-                        onClick={() => {
-                          setTimeRange(filter.key as any);
-                          setActiveMode('period');
-                          // Réinitialiser la date de référence quand on change de filtre
-                          if (filter.key !== 'all') {
-                            setFilterReferenceDate(now);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap ${
-                          timeRange === filter.key && activeMode === 'period'
-                            ? 'bg-[#12895a] text-white'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {filter.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Navigation par période (flèches) - affichée uniquement pour today, week, month */}
-                  {timeRange !== 'all' && activeMode === 'period' && (
-                    <div className='flex items-center justify-center gap-4 mt-2'>
-                      <button
-                        onClick={() => {
-                          if (timeRange === 'today') {
-                            setFilterReferenceDate(
-                              addDays(filterReferenceDate, -1)
-                            );
-                          } else if (timeRange === 'week') {
-                            setFilterReferenceDate(
-                              addDays(filterReferenceDate, -7)
-                            );
-                          } else if (timeRange === 'month') {
-                            const newDate = new Date(filterReferenceDate);
-                            newDate.setMonth(newDate.getMonth() - 1);
-                            setFilterReferenceDate(newDate);
-                          }
-                        }}
-                        className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
-                      >
-                        <ChevronLeft className='w-5 h-5 text-gray-600' />
-                      </button>
-
-                      <div className='text-center min-w-[120px]'>
-                        <p className='text-[12px] font-semibold text-gray-700'>
-                          {timeRange === 'today'
-                            ? format(filterReferenceDate, 'EEEE dd MMMM', {
-                                locale: fr,
-                              })
-                            : timeRange === 'week'
-                            ? `Semaine du ${format(
-                                startOfWeek(filterReferenceDate, {
-                                  locale: fr,
-                                }),
-                                'dd MMM',
-                                { locale: fr }
-                              )}`
-                            : format(filterReferenceDate, 'MMMM yyyy', {
-                                locale: fr,
-                              })}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          if (timeRange === 'today') {
-                            setFilterReferenceDate(
-                              addDays(filterReferenceDate, 1)
-                            );
-                          } else if (timeRange === 'week') {
-                            setFilterReferenceDate(
-                              addDays(filterReferenceDate, 7)
-                            );
-                          } else if (timeRange === 'month') {
-                            const newDate = new Date(filterReferenceDate);
-                            newDate.setMonth(newDate.getMonth() + 1);
-                            setFilterReferenceDate(newDate);
-                          }
-                        }}
-                        className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
-                      >
-                        <ChevronRight className='w-5 h-5 text-gray-600' />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Aggregated Products */}
-                <div className='space-y-3 pb-20'>
-                  {getAggregatedProducts().length > 0 ? (
-                    getAggregatedProducts().map(
-                      ({
-                        product,
-                        quantity,
-                        deficit,
-                        orders: productOrders,
-                      }) => (
-                        <ProductCard
-                          key={product.id}
-                          product={product}
-                          quantity={quantity}
-                          deficit={deficit}
-                          orders={productOrders}
-                          onCardClick={() => {
-                            setSelectedProduct(product);
-                            setSelectedProductOrders(productOrders);
-                            setShowDocumentsModal(true);
-                          }}
-                          onDocumentsClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedProduct(product);
-                            setSelectedProductOrders(productOrders);
-                            setShowDocumentsModal(true);
-                          }}
-                        />
-                      )
-                    )
-                  ) : (
-                    <div className='text-center py-8 text-gray-500'>
-                      <p className='text-[14px]'>
-                        Aucun produit à livrer pour cette période
+                  {/* Compact Header */}
+                  <div className='flex items-start justify-between mb-3 pb-3 border-b border-gray-200'>
+                    <div className='flex-1'>
+                      <h2 className='font-semibold text-[16px]'>
+                        {selectedOrder.client}
+                      </h2>
+                      <p className='text-[11px] text-gray-600'>
+                        {selectedOrder.number} • {selectedOrder.type}
                       </p>
                     </div>
-                  )}
-                </div>
-              </div>
-            ) : view === 'list' ? (
-              <>
-                {/* Filtres rapides avec navigation */}
-                <div className='mb-4'>
-                  <div className='flex gap-2 mb-2 overflow-x-auto pb-2'>
-                    {[
-                      { key: 'all', label: 'Tout' },
-                      { key: 'today', label: "Aujourd'hui" },
-                      { key: 'week', label: 'Cette semaine' },
-                      { key: 'month', label: 'Ce mois' },
-                    ].map((filter) => (
-                      <button
-                        key={filter.key}
-                        onClick={() => {
-                          setTimeRange(filter.key as any);
-                          // Réinitialiser la date de référence quand on change de filtre
-                          if (filter.key !== 'all') {
-                            setFilterReferenceDate(now);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap ${
-                          timeRange === filter.key
-                            ? 'bg-[#12895a] text-white'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {filter.label}
-                      </button>
-                    ))}
+                    <img
+                      src={clientLogos[selectedOrder.client] || ''}
+                      alt=''
+                      className='w-10 h-10 rounded object-cover flex-shrink-0'
+                    />
                   </div>
 
-                  {/* Navigation par période (flèches) - affichée uniquement pour today, week, month */}
-                  {timeRange !== 'all' && (
-                    <div className='flex items-center justify-center gap-4 mt-2'>
-                      <button
-                        onClick={() => {
-                          if (timeRange === 'today') {
-                            setFilterReferenceDate(
-                              addDays(filterReferenceDate, -1)
-                            );
-                          } else if (timeRange === 'week') {
-                            setFilterReferenceDate(
-                              addDays(filterReferenceDate, -7)
-                            );
-                          } else if (timeRange === 'month') {
-                            const newDate = new Date(filterReferenceDate);
-                            newDate.setMonth(newDate.getMonth() - 1);
-                            setFilterReferenceDate(newDate);
-                          }
-                        }}
-                        className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
-                      >
-                        <ChevronLeft className='w-5 h-5 text-gray-600' />
-                      </button>
+                  {/* Global Status Banner - Compact */}
+                  {(() => {
+                    const allProductsOk = selectedOrder.items.every((item) => {
+                      const product = products.find(
+                        (p) => p.id === item.productId
+                      );
+                      return product && product.stock >= item.quantity;
+                    });
 
-                      <div className='text-center min-w-[120px]'>
-                        <p className='text-[12px] font-semibold text-gray-700'>
-                          {timeRange === 'today'
-                            ? format(filterReferenceDate, 'EEEE dd MMMM', {
-                                locale: fr,
-                              })
-                            : timeRange === 'week'
-                            ? `Semaine du ${format(
-                                startOfWeek(filterReferenceDate, {
-                                  locale: fr,
-                                }),
-                                'dd MMM',
-                                { locale: fr }
-                              )}`
-                            : format(filterReferenceDate, 'MMMM yyyy', {
-                                locale: fr,
-                              })}
+                    return (
+                      <div
+                        className={`rounded-lg p-2 mb-3 ${
+                          allProductsOk
+                            ? 'bg-green-50 border border-green-200'
+                            : 'bg-red-50 border border-red-200'
+                        }`}
+                      >
+                        <p
+                          className={`text-[12px] font-semibold ${
+                            allProductsOk ? 'text-green-700' : 'text-red-700'
+                          }`}
+                        >
+                          {allProductsOk
+                            ? '✓ Stock suffisant'
+                            : '⚠ Stock insuffisant'}
+                        </p>
+                        <p
+                          className={`text-[10px] mt-0.5 ${
+                            allProductsOk ? 'text-green-600' : 'text-red-600'
+                          }`}
+                        >
+                          {allProductsOk
+                            ? 'Tous les produits sont disponibles'
+                            : 'Certains produits sont en rupture'}
                         </p>
                       </div>
+                    );
+                  })()}
 
+                  {/* Product Selection Control - Compact */}
+                  <div className='flex items-center justify-between mb-2 py-1'>
+                    <p className='text-[11px] text-gray-600 font-semibold'>
+                      Produits ({selectedOrder.items.length})
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (
+                          selectedProductsInOrder.length ===
+                          selectedOrder.items.length
+                        ) {
+                          setSelectedProductsInOrder([]);
+                        } else {
+                          setSelectedProductsInOrder(
+                            selectedOrder.items.map((item) => item.productId)
+                          );
+                        }
+                      }}
+                      className='text-[11px] text-[#12895a] font-semibold hover:underline'
+                    >
+                      {selectedProductsInOrder.length ===
+                      selectedOrder.items.length
+                        ? 'Tout désélectionner'
+                        : 'Tout sélectionner'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable Products List */}
+                <div className='flex-1 overflow-y-auto min-h-0'>
+                  <div className='space-y-3 pb-4'>
+                    {selectedOrder.items.map((item) => {
+                      const product = products.find(
+                        (p) => p.id === item.productId
+                      );
+                      if (!product) return null;
+
+                      const deficit = Math.max(
+                        0,
+                        item.quantity - product.stock
+                      );
+                      const isSelected = selectedProductsInOrder.includes(
+                        item.productId
+                      );
+
+                      return (
+                        <ProductCard
+                          key={item.productId}
+                          product={product}
+                          quantity={item.quantity}
+                          deficit={deficit}
+                          orders={[selectedOrder]}
+                          selectable={true}
+                          isSelected={isSelected}
+                          onSelectionToggle={() => {
+                            setSelectedProductsInOrder((prev) =>
+                              prev.includes(item.productId)
+                                ? prev.filter((id) => id !== item.productId)
+                                : [...prev, item.productId]
+                            );
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Fixed Footer with Actions */}
+                <div className='flex-shrink-0 pt-3 pb-4 bg-white border-t border-gray-200 space-y-2'>
+                  {/* Prepare order button */}
+                  {(() => {
+                    const allProductsOk = selectedOrder.items.every((item) => {
+                      const product = products.find(
+                        (p) => p.id === item.productId
+                      );
+                      return product && product.stock >= item.quantity;
+                    });
+
+                    return (
                       <button
-                        onClick={() => {
-                          if (timeRange === 'today') {
-                            setFilterReferenceDate(
-                              addDays(filterReferenceDate, 1)
-                            );
-                          } else if (timeRange === 'week') {
-                            setFilterReferenceDate(
-                              addDays(filterReferenceDate, 7)
-                            );
-                          } else if (timeRange === 'month') {
-                            const newDate = new Date(filterReferenceDate);
-                            newDate.setMonth(newDate.getMonth() + 1);
-                            setFilterReferenceDate(newDate);
-                          }
-                        }}
-                        className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
+                        disabled={!allProductsOk}
+                        className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
+                          allProductsOk
+                            ? 'bg-[#12895a] text-white hover:bg-[#107a4d]'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        }`}
                       >
-                        <ChevronRight className='w-5 h-5 text-gray-600' />
+                        <Package className='w-4 h-4' />
+                        Préparer la livraison
                       </button>
-                    </div>
+                    );
+                  })()}
+
+                  {/* Create production order button */}
+                  <button
+                    disabled={selectedProductsInOrder.length === 0}
+                    onClick={() => {
+                      if (selectedProductsInOrder.length > 0) {
+                        // Calculate quantities for selected products
+                        const quantities: Record<string, number> = {};
+                        selectedProductsInOrder.forEach((productId) => {
+                          const item = selectedOrder.items.find(
+                            (i) => i.productId === productId
+                          );
+                          const product = products.find(
+                            (p) => p.id === productId
+                          );
+                          if (item && product) {
+                            const deficit = Math.max(
+                              0,
+                              item.quantity - product.stock
+                            );
+                            quantities[productId] = deficit;
+                          }
+                        });
+                        setManufacturingQuantities(quantities);
+                        setShowOrderDetailsPage(false);
+                        setShowManufacturingOrder(true);
+                      }
+                    }}
+                    className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
+                      selectedProductsInOrder.length > 0
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <Plus className='w-4 h-4' />
+                    Créer un ordre de fabrication
+                    {selectedProductsInOrder.length > 0 &&
+                      ` (${selectedProductsInOrder.length})`}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Back button */}
+                <button
+                  onClick={() => setCurrentView('logistique-selection')}
+                  className='flex items-center gap-2 text-[#12895a] mb-3 -ml-2 px-2 py-1 hover:bg-gray-100 rounded transition-all'
+                >
+                  <ChevronLeft className='w-5 h-5' />
+                  <span className='text-[14px] font-semibold'>Retour</span>
+                </button>
+
+                {/* Header avec bouton bascule Liste/Calendrier et Mode */}
+                <div className='flex items-center justify-between mb-4'>
+                  <div className='flex gap-2'>
+                    <button
+                      onClick={() => setMode('clients')}
+                      className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+                        mode === 'clients'
+                          ? 'bg-[#12895a] text-white'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      Commandes
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMode('products');
+                        setActiveMode('period');
+                        // Conserver le filtre actif (timeRange et filterReferenceDate)
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+                        mode === 'products'
+                          ? 'bg-[#12895a] text-white'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      Produits
+                    </button>
+                  </div>
+                  {mode === 'clients' && (
+                    <button
+                      onClick={() =>
+                        setView(view === 'list' ? 'calendar' : 'list')
+                      }
+                      className='flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#12895a] text-white text-[12px] font-semibold hover:bg-[#107a4d] transition-colors'
+                    >
+                      {view === 'list' ? (
+                        <>
+                          <CalendarIcon className='w-4 h-4' />
+                          Calendrier
+                        </>
+                      ) : (
+                        <>
+                          <ListIcon className='w-4 h-4' />
+                          Liste
+                        </>
+                      )}
+                    </button>
                   )}
                 </div>
 
-                {/* Liste groupée par date avec filtres */}
-                <div className='space-y-4 pb-20'>
-                  {(() => {
-                    // Filtrer les commandes selon le timeRange
-                    let filteredOrders = getSortedOrdersByUrgency();
+                {mode === 'products' ? (
+                  <div>
+                    {/* Filtres rapides pour produits */}
+                    <div className='mb-4'>
+                      <div className='flex gap-2 mb-2 overflow-x-auto pb-2'>
+                        {[
+                          { key: 'all', label: 'Tout' },
+                          { key: 'today', label: "Aujourd'hui" },
+                          { key: 'week', label: 'Cette semaine' },
+                          { key: 'month', label: 'Ce mois' },
+                        ].map((filter) => (
+                          <button
+                            key={filter.key}
+                            onClick={() => {
+                              setTimeRange(filter.key as any);
+                              setActiveMode('period');
+                              // Réinitialiser la date de référence quand on change de filtre
+                              if (filter.key !== 'all') {
+                                setFilterReferenceDate(now);
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap ${
+                              timeRange === filter.key &&
+                              activeMode === 'period'
+                                ? 'bg-[#12895a] text-white'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {filter.label}
+                          </button>
+                        ))}
+                      </div>
 
-                    if (timeRange === 'today') {
-                      filteredOrders = filteredOrders.filter((order) =>
-                        isSameDay(order.deliveryDate, filterReferenceDate)
-                      );
-                    } else if (timeRange === 'week') {
-                      const weekStart = startOfWeek(filterReferenceDate, {
-                        locale: fr,
-                      });
-                      const weekEnd = endOfWeek(filterReferenceDate, {
-                        locale: fr,
-                      });
-                      filteredOrders = filteredOrders.filter(
-                        (order) =>
-                          order.deliveryDate >= weekStart &&
-                          order.deliveryDate <= weekEnd
-                      );
-                    } else if (timeRange === 'month') {
-                      const monthStart = startOfMonth(filterReferenceDate);
-                      const monthEnd = endOfMonth(filterReferenceDate);
-                      filteredOrders = filteredOrders.filter(
-                        (order) =>
-                          order.deliveryDate >= monthStart &&
-                          order.deliveryDate <= monthEnd
-                      );
-                    }
-                    // 'all' ne filtre rien
+                      {/* Navigation par période (flèches) - affichée uniquement pour today, week, month */}
+                      {timeRange !== 'all' && activeMode === 'period' && (
+                        <div className='flex items-center justify-center gap-4 mt-2'>
+                          <button
+                            onClick={() => {
+                              if (timeRange === 'today') {
+                                setFilterReferenceDate(
+                                  addDays(filterReferenceDate, -1)
+                                );
+                              } else if (timeRange === 'week') {
+                                setFilterReferenceDate(
+                                  addDays(filterReferenceDate, -7)
+                                );
+                              } else if (timeRange === 'month') {
+                                const newDate = new Date(filterReferenceDate);
+                                newDate.setMonth(newDate.getMonth() - 1);
+                                setFilterReferenceDate(newDate);
+                              }
+                            }}
+                            className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
+                          >
+                            <ChevronLeft className='w-5 h-5 text-gray-600' />
+                          </button>
 
-                    const grouped = groupOrdersByDate(filteredOrders);
-                    const sortedDates = Object.keys(grouped).sort();
-
-                    if (sortedDates.length === 0) {
-                      return (
-                        <div className='text-center py-8 text-gray-500'>
-                          <p className='text-[14px]'>
-                            Aucune commande pour cette période
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    return sortedDates.map((dateKey) => {
-                      // Parse dateKey (YYYY-MM-DD) and normalize to local midnight
-                      const [year, month, day] = dateKey.split('-').map(Number);
-                      const date = new Date(year, month - 1, day, 0, 0, 0, 0);
-                      const dayOrders = grouped[dateKey];
-                      const daysUntil = getDaysUntil(date);
-
-                      // Rouge pour aujourd'hui ou dans le passé, gris pour le reste
-                      const sectionColor =
-                        daysUntil <= 0 ? 'text-red-700' : 'text-gray-700';
-
-                      return (
-                        <div key={dateKey} className='space-y-2'>
-                          <div className='flex items-center gap-3 py-2'>
-                            <p
-                              className={`font-semibold text-[14px] ${sectionColor} flex-1`}
-                            >
-                              {getSectionDateLabel(date, daysUntil)}
+                          <div className='text-center min-w-[120px]'>
+                            <p className='text-[12px] font-semibold text-gray-700'>
+                              {timeRange === 'today'
+                                ? format(filterReferenceDate, 'EEEE dd MMMM', {
+                                    locale: fr,
+                                  })
+                                : timeRange === 'week'
+                                ? `Semaine du ${format(
+                                    startOfWeek(filterReferenceDate, {
+                                      locale: fr,
+                                    }),
+                                    'dd MMM',
+                                    { locale: fr }
+                                  )}`
+                                : format(filterReferenceDate, 'MMMM yyyy', {
+                                    locale: fr,
+                                  })}
                             </p>
-                            <span className='text-[12px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full'>
-                              {dayOrders.length}
-                            </span>
                           </div>
-                          <div className='space-y-2 pl-2'>
-                            {dayOrders.map((order) => getOrderCard(order))}
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </>
-            ) : (
-              <div>
-                {/* Calendrier mensuel simple - Le composant MUI a déjà sa propre navigation */}
-                <LocalizationProvider
-                  dateAdapter={AdapterDayjs}
-                  adapterLocale='fr'
-                >
-                  <DateCalendar
-                    value={dayjs(selectedCalendarDay || currentDate)}
-                    onChange={(newValue) => {
-                      if (newValue) {
-                        setSelectedCalendarDay(newValue.toDate());
-                      }
-                    }}
-                    onMonthChange={(newMonth) => {
-                      setCurrentDate(newMonth.toDate());
-                    }}
-                    slots={{
-                      day: (dayProps: any) => {
-                        const currentDay = dayProps.day.toDate();
-                        const dayOrders = getOrdersForDate(currentDay);
-                        const totalCount = dayOrders.length;
 
-                        const renderDots = () => {
-                          if (totalCount === 0) return null;
-                          if (totalCount <= 3) {
-                            return (
-                              <div className='absolute bottom-0 left-1/2 transform -translate-x-1/2 flex gap-0.5 items-center'>
-                                {dayOrders.map((order, idx) => (
-                                  <div
-                                    key={idx}
-                                    className={`w-1.5 h-1.5 rounded-full ${
-                                      order.type === 'BC'
-                                        ? 'bg-blue-600'
-                                        : 'bg-green-600'
-                                    }`}
-                                  />
-                                ))}
-                              </div>
-                            );
-                          }
-                          return (
-                            <div className='absolute bottom-0 left-1/2 transform -translate-x-1/2 flex gap-0.5 items-center'>
-                              {dayOrders.slice(0, 2).map((order, idx) => (
-                                <div
-                                  key={idx}
-                                  className={`w-1.5 h-1.5 rounded-full ${
-                                    order.type === 'BC'
-                                      ? 'bg-blue-600'
-                                      : 'bg-green-600'
-                                  }`}
-                                />
-                              ))}
-                              <span className='text-[8px] font-bold text-gray-600'>
-                                +{totalCount - 2}
-                              </span>
-                            </div>
-                          );
-                        };
-
-                        return (
-                          <div className='relative'>
-                            <PickersDay {...dayProps} />
-                            {renderDots()}
-                          </div>
-                        );
-                      },
-                    }}
-                    sx={{
-                      width: '100%',
-                      maxWidth: '100%',
-                      '& .MuiPickersCalendarHeader-root': {
-                        paddingLeft: 1,
-                        paddingRight: 1,
-                      },
-                      '& .MuiDayCalendar-header': {
-                        justifyContent: 'space-around',
-                      },
-                      '& .MuiDayCalendar-weekContainer': {
-                        justifyContent: 'space-around',
-                      },
-                      '& .MuiPickersDay-root': {
-                        fontSize: '0.875rem',
-                      },
-                    }}
-                  />
-                </LocalizationProvider>
-
-                {/* Liste des commandes du jour sélectionné */}
-                {selectedCalendarDay && (
-                  <>
-                    <div className='border-t border-gray-200 my-4' />
-                    <div>
-                      <h3 className='font-semibold text-[14px] mb-3'>
-                        {format(selectedCalendarDay, 'EEEE dd MMMM yyyy', {
-                          locale: fr,
-                        })}
-                      </h3>
-                      {getOrdersForDate(selectedCalendarDay).length > 0 ? (
-                        <div className='space-y-3 pb-20'>
-                          {getOrdersForDate(selectedCalendarDay).map((order) =>
-                            getOrderCard(order)
-                          )}
-                        </div>
-                      ) : (
-                        <div className='text-center py-8 text-gray-500'>
-                          <p className='text-[14px]'>Aucune commande ce jour</p>
+                          <button
+                            onClick={() => {
+                              if (timeRange === 'today') {
+                                setFilterReferenceDate(
+                                  addDays(filterReferenceDate, 1)
+                                );
+                              } else if (timeRange === 'week') {
+                                setFilterReferenceDate(
+                                  addDays(filterReferenceDate, 7)
+                                );
+                              } else if (timeRange === 'month') {
+                                const newDate = new Date(filterReferenceDate);
+                                newDate.setMonth(newDate.getMonth() + 1);
+                                setFilterReferenceDate(newDate);
+                              }
+                            }}
+                            className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
+                          >
+                            <ChevronRight className='w-5 h-5 text-gray-600' />
+                          </button>
                         </div>
                       )}
                     </div>
+
+                    {/* Aggregated Products */}
+                    <div className='space-y-3 pb-20'>
+                      {getAggregatedProducts().length > 0 ? (
+                        getAggregatedProducts().map(
+                          ({
+                            product,
+                            quantity,
+                            deficit,
+                            orders: productOrders,
+                          }) => (
+                            <ProductCard
+                              key={product.id}
+                              product={product}
+                              quantity={quantity}
+                              deficit={deficit}
+                              orders={productOrders}
+                              onCardClick={() => {
+                                setSelectedProduct(product);
+                                setSelectedProductOrders(productOrders);
+                                setShowDocumentsModal(true);
+                              }}
+                              onDocumentsClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedProduct(product);
+                                setSelectedProductOrders(productOrders);
+                                setShowDocumentsModal(true);
+                              }}
+                            />
+                          )
+                        )
+                      ) : (
+                        <div className='text-center py-8 text-gray-500'>
+                          <p className='text-[14px]'>
+                            Aucun produit à livrer pour cette période
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : view === 'list' ? (
+                  <>
+                    {/* Filtres rapides avec navigation */}
+                    <div className='mb-4'>
+                      <div className='flex gap-2 mb-2 overflow-x-auto pb-2'>
+                        {[
+                          { key: 'all', label: 'Tout' },
+                          { key: 'today', label: "Aujourd'hui" },
+                          { key: 'week', label: 'Cette semaine' },
+                          { key: 'month', label: 'Ce mois' },
+                        ].map((filter) => (
+                          <button
+                            key={filter.key}
+                            onClick={() => {
+                              setTimeRange(filter.key as any);
+                              // Réinitialiser la date de référence quand on change de filtre
+                              if (filter.key !== 'all') {
+                                setFilterReferenceDate(now);
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap ${
+                              timeRange === filter.key
+                                ? 'bg-[#12895a] text-white'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {filter.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Navigation par période (flèches) - affichée uniquement pour today, week, month */}
+                      {timeRange !== 'all' && (
+                        <div className='flex items-center justify-center gap-4 mt-2'>
+                          <button
+                            onClick={() => {
+                              if (timeRange === 'today') {
+                                setFilterReferenceDate(
+                                  addDays(filterReferenceDate, -1)
+                                );
+                              } else if (timeRange === 'week') {
+                                setFilterReferenceDate(
+                                  addDays(filterReferenceDate, -7)
+                                );
+                              } else if (timeRange === 'month') {
+                                const newDate = new Date(filterReferenceDate);
+                                newDate.setMonth(newDate.getMonth() - 1);
+                                setFilterReferenceDate(newDate);
+                              }
+                            }}
+                            className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
+                          >
+                            <ChevronLeft className='w-5 h-5 text-gray-600' />
+                          </button>
+
+                          <div className='text-center min-w-[120px]'>
+                            <p className='text-[12px] font-semibold text-gray-700'>
+                              {timeRange === 'today'
+                                ? format(filterReferenceDate, 'EEEE dd MMMM', {
+                                    locale: fr,
+                                  })
+                                : timeRange === 'week'
+                                ? `Semaine du ${format(
+                                    startOfWeek(filterReferenceDate, {
+                                      locale: fr,
+                                    }),
+                                    'dd MMM',
+                                    { locale: fr }
+                                  )}`
+                                : format(filterReferenceDate, 'MMMM yyyy', {
+                                    locale: fr,
+                                  })}
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              if (timeRange === 'today') {
+                                setFilterReferenceDate(
+                                  addDays(filterReferenceDate, 1)
+                                );
+                              } else if (timeRange === 'week') {
+                                setFilterReferenceDate(
+                                  addDays(filterReferenceDate, 7)
+                                );
+                              } else if (timeRange === 'month') {
+                                const newDate = new Date(filterReferenceDate);
+                                newDate.setMonth(newDate.getMonth() + 1);
+                                setFilterReferenceDate(newDate);
+                              }
+                            }}
+                            className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
+                          >
+                            <ChevronRight className='w-5 h-5 text-gray-600' />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Liste groupée par date avec filtres */}
+                    <div className='space-y-4 pb-20'>
+                      {(() => {
+                        // Filtrer les commandes selon le timeRange
+                        let filteredOrders = getSortedOrdersByUrgency();
+
+                        if (timeRange === 'today') {
+                          filteredOrders = filteredOrders.filter((order) =>
+                            isSameDay(order.deliveryDate, filterReferenceDate)
+                          );
+                        } else if (timeRange === 'week') {
+                          const weekStart = startOfWeek(filterReferenceDate, {
+                            locale: fr,
+                          });
+                          const weekEnd = endOfWeek(filterReferenceDate, {
+                            locale: fr,
+                          });
+                          filteredOrders = filteredOrders.filter(
+                            (order) =>
+                              order.deliveryDate >= weekStart &&
+                              order.deliveryDate <= weekEnd
+                          );
+                        } else if (timeRange === 'month') {
+                          const monthStart = startOfMonth(filterReferenceDate);
+                          const monthEnd = endOfMonth(filterReferenceDate);
+                          filteredOrders = filteredOrders.filter(
+                            (order) =>
+                              order.deliveryDate >= monthStart &&
+                              order.deliveryDate <= monthEnd
+                          );
+                        }
+                        // 'all' ne filtre rien
+
+                        const grouped = groupOrdersByDate(filteredOrders);
+                        const sortedDates = Object.keys(grouped).sort();
+
+                        if (sortedDates.length === 0) {
+                          return (
+                            <div className='text-center py-8 text-gray-500'>
+                              <p className='text-[14px]'>
+                                Aucune commande pour cette période
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return sortedDates.map((dateKey) => {
+                          // Parse dateKey (YYYY-MM-DD) and normalize to local midnight
+                          const [year, month, day] = dateKey
+                            .split('-')
+                            .map(Number);
+                          const date = new Date(
+                            year,
+                            month - 1,
+                            day,
+                            0,
+                            0,
+                            0,
+                            0
+                          );
+                          const dayOrders = grouped[dateKey];
+                          const daysUntil = getDaysUntil(date);
+
+                          // Rouge pour aujourd'hui ou dans le passé, gris pour le reste
+                          const sectionColor =
+                            daysUntil <= 0 ? 'text-red-700' : 'text-gray-700';
+
+                          return (
+                            <div key={dateKey} className='space-y-2'>
+                              <div className='flex items-center gap-3 py-2'>
+                                <p
+                                  className={`font-semibold text-[14px] ${sectionColor} flex-1`}
+                                >
+                                  {getSectionDateLabel(date, daysUntil)}
+                                </p>
+                                <span className='text-[12px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full'>
+                                  {dayOrders.length}
+                                </span>
+                              </div>
+                              <div className='space-y-2 pl-2'>
+                                {dayOrders.map((order) => getOrderCard(order))}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
                   </>
+                ) : (
+                  <div>
+                    {/* Calendrier mensuel simple - Le composant MUI a déjà sa propre navigation */}
+                    <LocalizationProvider
+                      dateAdapter={AdapterDayjs}
+                      adapterLocale='fr'
+                    >
+                      <DateCalendar
+                        value={dayjs(selectedCalendarDay || currentDate)}
+                        onChange={(newValue) => {
+                          if (newValue) {
+                            setSelectedCalendarDay(newValue.toDate());
+                          }
+                        }}
+                        onMonthChange={(newMonth) => {
+                          setCurrentDate(newMonth.toDate());
+                        }}
+                        slots={{
+                          day: (dayProps: any) => {
+                            const currentDay = dayProps.day.toDate();
+                            const dayOrders = getOrdersForDate(currentDay);
+                            const totalCount = dayOrders.length;
+
+                            const renderDots = () => {
+                              if (totalCount === 0) return null;
+                              if (totalCount <= 3) {
+                                return (
+                                  <div className='absolute bottom-0 left-1/2 transform -translate-x-1/2 flex gap-0.5 items-center'>
+                                    {dayOrders.map((order, idx) => (
+                                      <div
+                                        key={idx}
+                                        className={`w-1.5 h-1.5 rounded-full ${
+                                          order.type === 'BC'
+                                            ? 'bg-blue-600'
+                                            : 'bg-green-600'
+                                        }`}
+                                      />
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className='absolute bottom-0 left-1/2 transform -translate-x-1/2 flex gap-0.5 items-center'>
+                                  {dayOrders.slice(0, 2).map((order, idx) => (
+                                    <div
+                                      key={idx}
+                                      className={`w-1.5 h-1.5 rounded-full ${
+                                        order.type === 'BC'
+                                          ? 'bg-blue-600'
+                                          : 'bg-green-600'
+                                      }`}
+                                    />
+                                  ))}
+                                  <span className='text-[8px] font-bold text-gray-600'>
+                                    +{totalCount - 2}
+                                  </span>
+                                </div>
+                              );
+                            };
+
+                            return (
+                              <div className='relative'>
+                                <PickersDay {...dayProps} />
+                                {renderDots()}
+                              </div>
+                            );
+                          },
+                        }}
+                        sx={{
+                          width: '100%',
+                          maxWidth: '100%',
+                          '& .MuiPickersCalendarHeader-root': {
+                            paddingLeft: 1,
+                            paddingRight: 1,
+                          },
+                          '& .MuiDayCalendar-header': {
+                            justifyContent: 'space-around',
+                          },
+                          '& .MuiDayCalendar-weekContainer': {
+                            justifyContent: 'space-around',
+                          },
+                          '& .MuiPickersDay-root': {
+                            fontSize: '0.875rem',
+                          },
+                        }}
+                      />
+                    </LocalizationProvider>
+
+                    {/* Liste des commandes du jour sélectionné */}
+                    {selectedCalendarDay && (
+                      <>
+                        <div className='border-t border-gray-200 my-4' />
+                        <div>
+                          <h3 className='font-semibold text-[14px] mb-3'>
+                            {format(selectedCalendarDay, 'EEEE dd MMMM yyyy', {
+                              locale: fr,
+                            })}
+                          </h3>
+                          {getOrdersForDate(selectedCalendarDay).length > 0 ? (
+                            <div className='space-y-3 pb-20'>
+                              {getOrdersForDate(selectedCalendarDay).map(
+                                (order) => getOrderCard(order)
+                              )}
+                            </div>
+                          ) : (
+                            <div className='text-center py-8 text-gray-500'>
+                              <p className='text-[14px]'>
+                                Aucune commande ce jour
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         </div>
@@ -1159,117 +1391,36 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* Products List - Compact */}
-                <div className='space-y-2'>
+                {/* Products List */}
+                <div className='space-y-3'>
                   {selectedOrder.items.map((item) => {
                     const product = products.find(
                       (p) => p.id === item.productId
                     );
                     if (!product) return null;
 
-                    const hasStock = product.stock >= item.quantity;
+                    const deficit = Math.max(0, item.quantity - product.stock);
                     const isSelected = selectedProductsInOrder.includes(
                       item.productId
                     );
 
                     return (
-                      <div
+                      <ProductCard
                         key={item.productId}
-                        onClick={() => {
+                        product={product}
+                        quantity={item.quantity}
+                        deficit={deficit}
+                        orders={[selectedOrder]}
+                        selectable={true}
+                        isSelected={isSelected}
+                        onSelectionToggle={() => {
                           setSelectedProductsInOrder((prev) =>
                             prev.includes(item.productId)
                               ? prev.filter((id) => id !== item.productId)
                               : [...prev, item.productId]
                           );
                         }}
-                        className={`border rounded-lg p-2 cursor-pointer transition-all ${
-                          isSelected
-                            ? 'border-[#12895a] border-2 bg-green-50'
-                            : hasStock
-                            ? 'border-gray-200 hover:border-gray-300'
-                            : 'border-red-200 bg-red-50'
-                        }`}
-                      >
-                        {/* Header: Checkbox + Name + Image */}
-                        <div className='flex items-center gap-2 mb-1.5'>
-                          <div
-                            className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                              isSelected
-                                ? 'bg-[#12895a] border-[#12895a]'
-                                : 'border-gray-300 bg-white'
-                            }`}
-                          >
-                            {isSelected && (
-                              <span className='text-white text-[10px]'>✓</span>
-                            )}
-                          </div>
-                          <div className='flex-1 min-w-0'>
-                            <p className='font-semibold text-[13px] truncate'>
-                              {product.name}
-                            </p>
-                            {!hasStock && (
-                              <p className='text-[10px] text-red-600 font-semibold'>
-                                ⚠ Stock insuffisant
-                              </p>
-                            )}
-                          </div>
-                          {product.imageUrl && (
-                            <img
-                              src={product.imageUrl}
-                              alt=''
-                              className='w-10 h-10 rounded object-cover flex-shrink-0'
-                            />
-                          )}
-                        </div>
-
-                        {/* Stock info - Compact */}
-                        <div className='space-y-0.5'>
-                          <div className='flex justify-between text-[10px]'>
-                            <span className='text-gray-600'>À livrer</span>
-                            <span className='font-semibold'>
-                              {item.quantity}
-                            </span>
-                          </div>
-                          <div className='flex justify-between text-[10px]'>
-                            <span className='text-gray-600'>Stock actuel</span>
-                            <span
-                              className={`font-semibold ${
-                                hasStock ? 'text-green-600' : 'text-red-600'
-                              }`}
-                            >
-                              {product.stock}
-                            </span>
-                          </div>
-
-                          {/* Visual stock bar - Compact */}
-                          <div className='relative h-1.5 bg-gray-200 rounded-full overflow-visible mt-1'>
-                            {/* Stock bar */}
-                            <div
-                              className={`absolute left-0 top-0 h-full rounded-full transition-all ${
-                                hasStock ? 'bg-green-500' : 'bg-red-500'
-                              }`}
-                              style={{
-                                width: `${Math.min(
-                                  (product.stock / product.stockMax) * 100,
-                                  100
-                                )}%`,
-                              }}
-                            />
-
-                            {/* Required quantity triangle */}
-                            <div
-                              className='absolute top-[-3px] w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[6px] border-t-gray-700'
-                              style={{
-                                left: `${Math.min(
-                                  (item.quantity / product.stockMax) * 100,
-                                  100
-                                )}%`,
-                                transform: 'translateX(-50%)',
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
+                      />
                     );
                   })}
                 </div>

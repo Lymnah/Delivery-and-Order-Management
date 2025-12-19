@@ -13,6 +13,10 @@ interface ProductCardProps {
   manufacturingMode?: boolean;
   currentManufacturingQty?: number; // Quantité actuellement sélectionnée pour fabrication
   onManufacturingQtyChange?: (productId: string, quantity: number) => void; // Handler pour changer la quantité
+  // Selection mode props (optionnel)
+  selectable?: boolean; // Si true, la carte peut être sélectionnée
+  isSelected?: boolean; // Si la carte est sélectionnée
+  onSelectionToggle?: () => void; // Handler pour toggle la sélection
 }
 
 export default function ProductCard({
@@ -25,6 +29,9 @@ export default function ProductCard({
   manufacturingMode = false,
   currentManufacturingQty = 0,
   onManufacturingQtyChange,
+  selectable = false,
+  isSelected = false,
+  onSelectionToggle,
 }: ProductCardProps) {
   // Calculate slider values for manufacturing mode
   const maxManufacturing = product.stockMax - product.stock;
@@ -38,18 +45,45 @@ export default function ProductCard({
   const thumbPositionPercent = stockStartPercent + rangePercent * sliderProgress;
   const orangeBarWidth = thumbPositionPercent - stockStartPercent;
 
+  const handleClick = () => {
+    if (selectable && onSelectionToggle) {
+      onSelectionToggle();
+    } else if (!manufacturingMode && onCardClick) {
+      onCardClick();
+    }
+  };
+
   return (
     <div
-      className={`border border-gray-300 rounded-lg p-4 ${
-        manufacturingMode
-          ? '' // Pas de cursor-pointer en mode manufacturing
-          : 'relative cursor-pointer hover:border-gray-400 transition-colors'
-      }`}
-      onClick={manufacturingMode ? undefined : onCardClick}
+      className={`border rounded-lg p-4 ${
+        selectable && isSelected
+          ? 'border-[#12895a] border-2 bg-green-50'
+          : selectable
+          ? 'border-gray-300 hover:border-gray-400'
+          : manufacturingMode
+          ? 'border-gray-300'
+          : 'border-gray-300 relative cursor-pointer hover:border-gray-400 transition-colors'
+      } ${selectable ? 'cursor-pointer' : ''}`}
+      onClick={handleClick}
     >
       <div className={`flex flex-col ${manufacturingMode ? 'gap-3' : 'gap-2'}`}>
         {/* First row: Image + Info + Badge */}
         <div className='flex items-start gap-3'>
+          {/* Checkbox for selectable mode */}
+          {selectable && (
+            <div
+              className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
+                isSelected
+                  ? 'bg-[#12895a] border-[#12895a]'
+                  : 'border-gray-300 bg-white'
+              }`}
+            >
+              {isSelected && (
+                <span className='text-white text-[10px]'>✓</span>
+              )}
+            </div>
+          )}
+
           {/* Product Image */}
           <div className='w-12 h-12 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden'>
             {product.imageUrl ? (
