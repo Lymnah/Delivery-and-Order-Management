@@ -1,23 +1,27 @@
 import React from 'react';
-import { Package } from 'lucide-react';
+import {
+  Package,
+  AlertCircle,
+  CheckCircle2,
+  FileText,
+  Hammer,
+} from 'lucide-react';
 import svgPathsStock from '../../imports/svg-gt4hwy99w6';
 import type { Product, Order } from '../../data/database';
 
 interface ProductCardProps {
   product: Product;
-  quantity: number; // Quantité à livrer
-  deficit: number; // Quantité manquante
-  orders: Order[]; // Commandes contenant ce produit
-  onCardClick?: () => void; // Handler pour le clic sur la carte
-  onDocumentsClick?: (e: React.MouseEvent) => void; // Handler pour le bouton documents
-  // Manufacturing mode props (optionnel)
+  quantity: number;
+  deficit: number;
+  orders: Order[];
+  onCardClick?: () => void;
+  onDocumentsClick?: (e: React.MouseEvent) => void;
   manufacturingMode?: boolean;
-  currentManufacturingQty?: number; // Quantité actuellement sélectionnée pour fabrication
-  onManufacturingQtyChange?: (productId: string, quantity: number) => void; // Handler pour changer la quantité
-  // Selection mode props (optionnel)
-  selectable?: boolean; // Si true, la carte peut être sélectionnée
-  isSelected?: boolean; // Si la carte est sélectionnée
-  onSelectionToggle?: () => void; // Handler pour toggle la sélection
+  currentManufacturingQty?: number;
+  onManufacturingQtyChange?: (productId: string, quantity: number) => void;
+  selectable?: boolean;
+  isSelected?: boolean;
+  onSelectionToggle?: () => void;
 }
 
 export default function ProductCard({
@@ -34,7 +38,7 @@ export default function ProductCard({
   isSelected = false,
   onSelectionToggle,
 }: ProductCardProps) {
-  // Calculate slider values for manufacturing mode
+  // --- Logic for Slider (unchanged) ---
   const maxManufacturing = product.stockMax - product.stock;
   const stockStartPercent = (product.stock / product.stockMax) * 80;
   const stockEndPercent = 80;
@@ -55,37 +59,57 @@ export default function ProductCard({
     }
   };
 
+  // --- UI Helper for Status Badge ---
+  const getStatusBadge = () => {
+    if (deficit > 0) {
+      return (
+        <span className='inline-flex items-center gap-1 text-[11px] text-red-700 bg-red-50 px-2 py-0.5 rounded-md font-semibold whitespace-nowrap border border-red-100'>
+          <AlertCircle className='w-3 h-3' />
+          Manque {deficit} u
+        </span>
+      );
+    }
+    return (
+      <span className='inline-flex items-center gap-1 text-[11px] text-green-700 bg-green-50 px-2 py-0.5 rounded-md font-semibold whitespace-nowrap border border-green-100'>
+        <CheckCircle2 className='w-3 h-3' />
+        OK
+      </span>
+    );
+  };
+
   return (
     <div
-      className={`border rounded-lg p-4 ${
+      className={`group border rounded-xl p-3 shadow-sm transition-all duration-200 ${
         selectable && isSelected
-          ? 'border-[#12895a] border-2 bg-green-50'
+          ? 'border-[#12895a] bg-green-50/30'
           : selectable
-          ? 'border-gray-300 hover:border-gray-400'
+          ? 'border-gray-200 hover:border-[#12895a]/50 hover:shadow-md bg-white'
           : manufacturingMode
-          ? 'border-gray-300'
-          : 'border-gray-300 relative cursor-pointer hover:border-gray-400 transition-colors'
+          ? 'border-gray-200 bg-white'
+          : 'border-gray-200 bg-white relative cursor-pointer hover:border-gray-300 hover:shadow-md'
       } ${selectable ? 'cursor-pointer' : ''}`}
       onClick={handleClick}
     >
-      <div className={`flex flex-col ${manufacturingMode ? 'gap-3' : 'gap-2'}`}>
-        {/* First row: Image + Info + Badge */}
+      <div className={`flex flex-col ${manufacturingMode ? 'gap-4' : 'gap-3'}`}>
+        {/* === OPTIMIZED FIRST ROW === */}
         <div className='flex items-start gap-3'>
-          {/* Checkbox for selectable mode */}
+          {/* 1. Checkbox (Selectable Mode) */}
           {selectable && (
             <div
-              className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
+              className={`w-5 h-5 rounded border transition-colors flex items-center justify-center flex-shrink-0 mt-0.5 ${
                 isSelected
                   ? 'bg-[#12895a] border-[#12895a]'
-                  : 'border-gray-300 bg-white'
+                  : 'border-gray-300 bg-white group-hover:border-[#12895a]'
               }`}
             >
-              {isSelected && <span className='text-white text-[10px]'>✓</span>}
+              {isSelected && (
+                <span className='text-white text-[12px] font-bold'>✓</span>
+              )}
             </div>
           )}
 
-          {/* Product Image */}
-          <div className='w-12 h-12 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden'>
+          {/* 2. Product Image */}
+          <div className='relative w-12 h-12 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden'>
             {product.imageUrl ? (
               <img
                 src={product.imageUrl}
@@ -93,83 +117,76 @@ export default function ProductCard({
                 className='w-full h-full object-cover'
               />
             ) : (
-              <Package className='w-6 h-6 text-gray-400' />
+              <Package className='w-5 h-5 text-gray-300' />
             )}
           </div>
 
-          {/* Product Information */}
-          <div className='flex-1 min-w-0 space-y-1.5'>
-            {/* Line 1: Product name + Badge */}
-            <div
-              className={
-                manufacturingMode
-                  ? 'flex items-center justify-between gap-3'
-                  : ''
-              }
-            >
-              <p className='font-semibold text-[16px] text-gray-900'>
+          {/* 3. Main Information Column */}
+          <div className='flex-1 min-w-0 flex flex-col gap-1'>
+            {/* Header: Name + Manufacturing Badge */}
+            <div className='flex items-start justify-between gap-2'>
+              <h3 className='font-bold text-[15px] text-gray-900 leading-tight truncate pr-1'>
                 {product.name}
-              </p>
+              </h3>
+
+              {/* Manufacturing Badge (Only visible in that mode) */}
               {manufacturingMode && (
-                <div className='bg-orange-100 text-orange-700 px-2.5 py-0.5 rounded-md text-[12px] font-semibold whitespace-nowrap'>
-                  Fabriquer: {currentManufacturingQty} u
+                <div className='flex items-center gap-1 bg-orange-100 text-orange-800 px-2 py-0.5 rounded text-[11px] font-bold whitespace-nowrap border border-orange-200'>
+                  <Hammer className='w-3 h-3' />
+                  Fabriquer: {currentManufacturingQty}
                 </div>
               )}
             </div>
 
-            {/* Line 2: À livrer + Manque */}
-            <div className='flex items-center gap-2 flex-wrap'>
-              <span className='text-[12px] text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md font-medium whitespace-nowrap'>
-                À livrer{' '}
-                <span className='font-semibold text-gray-900'>{quantity}</span>{' '}
-                u
+            {/* Sub-header: Stats Badges */}
+            <div className='flex items-center flex-wrap gap-2'>
+              {/* To Deliver Badge */}
+              <span className='inline-flex items-center gap-1.5 text-[11px] text-gray-600 bg-gray-50 px-2 py-0.5 rounded-md font-medium whitespace-nowrap border border-gray-100'>
+                À livrer
+                <span className='font-bold text-gray-900'>{quantity} u</span>
               </span>
 
-              {deficit > 0 ? (
-                <span className='text-[12px] text-red-700 bg-red-50 px-2 py-0.5 rounded-md font-semibold whitespace-nowrap'>
-                  Manque {deficit} u
-                </span>
-              ) : (
-                <span className='text-[12px] text-green-700 bg-green-50 px-2 py-0.5 rounded-md font-semibold whitespace-nowrap'>
-                  OK
-                </span>
-              )}
+              {/* Status Badge (Calculated above) */}
+              {getStatusBadge()}
             </div>
           </div>
 
-          {/* Right badge: Documents (normal mode) or nothing (manufacturing mode) */}
-          {/* Hide badge if there's only one order (we're in order details page) */}
-          {!manufacturingMode && orders.length > 1 && (
-            <div className='text-right flex-shrink-0'>
+          {/* 4. Action Button: Documents (Hidden in manufacturing mode) */}
+          {!manufacturingMode && orders.length > 0 && (
+            <div className='flex-shrink-0'>
               <button
-                onClick={onDocumentsClick || onCardClick}
-                className='bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-semibold hover:bg-blue-200 transition-colors'
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onDocumentsClick) onDocumentsClick(e);
+                  else if (onCardClick) onCardClick();
+                }}
+                className='flex items-center gap-1 bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold hover:bg-blue-100 transition-colors border border-blue-100'
               >
-                {orders.length} doc(s)
+                <FileText className='w-3 h-3' />
+                {orders.length}
               </button>
             </div>
           )}
         </div>
 
-        {/* Second row: Stock Bar - Full width */}
-        <div className='flex gap-4 pt-2 items-center w-full'>
+        {/* === SECOND ROW: Stock Bar (Unchanged Logic, refined styling) === */}
+        <div className='flex gap-4 items-end w-full'>
           <div
             className={`relative flex-1 ${
-              manufacturingMode ? 'h-[50px]' : 'h-[43px]'
+              manufacturingMode ? 'h-[46px]' : 'h-[36px]'
             }`}
           >
             {/* Base slider bar */}
             <div
-              className={`absolute h-[5px] left-0 w-full ${
-                manufacturingMode ? 'bottom-[37px]' : 'bottom-[30px]'
+              className={`absolute h-[6px] left-0 w-full rounded-full bg-gray-100 overflow-hidden ${
+                manufacturingMode ? 'bottom-[28px]' : 'bottom-[20px]'
               }`}
             >
-              <div className='absolute bg-[#f5f5f6] inset-0 rounded' />
-              {/* Current stock (green/red) */}
+              {/* Current stock */}
               <div
-                className={`absolute h-[5px] left-0 top-0 rounded ${
+                className={`absolute h-full left-0 top-0 rounded-full ${
                   product.stock < product.stockMin
-                    ? 'bg-[#ea580c]'
+                    ? 'bg-orange-500'
                     : 'bg-[#16a34a]'
                 }`}
                 style={{
@@ -179,10 +196,10 @@ export default function ProductCard({
                   )}%`,
                 }}
               />
-              {/* Manufacturing quantity to add (orange) - only in manufacturing mode */}
+              {/* Manufacturing Add */}
               {manufacturingMode && (
                 <div
-                  className='absolute h-[5px] top-0 rounded bg-orange-500'
+                  className='absolute h-full top-0 bg-orange-400'
                   style={{
                     left: `${stockStartPercent}%`,
                     width: `${orangeBarWidth}%`,
@@ -191,7 +208,7 @@ export default function ProductCard({
               )}
             </div>
 
-            {/* Interactive slider - only in manufacturing mode */}
+            {/* Slider Input */}
             {manufacturingMode && onManufacturingQtyChange && (
               <>
                 <input
@@ -205,16 +222,10 @@ export default function ProductCard({
                       parseInt(e.target.value)
                     );
                   }}
-                  className='absolute bottom-[30px] h-[20px] opacity-0 cursor-pointer z-10'
-                  style={{
-                    left: `${stockStartPercent}%`,
-                    width: `${stockEndPercent - stockStartPercent}%`,
-                  }}
+                  className='absolute bottom-[20px] h-[20px] w-full opacity-0 cursor-pointer z-10'
                 />
-
-                {/* Slider thumb indicator */}
                 <div
-                  className='absolute bottom-[32px] w-4 h-4 bg-orange-500 border-2 border-white rounded-full shadow-lg pointer-events-none z-20'
+                  className='absolute bottom-[23px] w-4 h-4 bg-white border-[3px] border-orange-500 rounded-full shadow-md pointer-events-none z-20'
                   style={{
                     left: `${thumbPositionPercent}%`,
                     transform: 'translateX(-50%)',
@@ -223,85 +234,56 @@ export default function ProductCard({
               </>
             )}
 
-            {/* Stock Min marker (left triangle) */}
+            {/* Min/Max Markers */}
             <div
-              className='absolute flex flex-col gap-1 items-center bottom-0'
+              className='absolute flex flex-col items-center bottom-0'
               style={{
                 left: `${(product.stockMin / product.stockMax) * 80}%`,
                 transform: 'translateX(-50%)',
               }}
             >
-              <div className='h-[6px] w-[8.589px]'>
-                <svg
-                  className='block size-full'
-                  fill='none'
-                  preserveAspectRatio='none'
-                  viewBox='0 0 9 6'
-                >
-                  <path d={svgPathsStock.p44ee500} fill='#717680' />
-                </svg>
-              </div>
-              <p className='font-normal text-[12px] leading-none text-center text-[#535862] whitespace-nowrap pb-1'>
-                {product.stockMin} u
-              </p>
+              <div className='w-0.5 h-1.5 bg-gray-300 mb-0.5'></div>
+              <span className='text-[10px] text-gray-400 font-medium leading-none'>
+                {product.stockMin}
+              </span>
             </div>
 
-            {/* Stock Max marker (right triangle) */}
             <div
-              className='absolute flex flex-col gap-1 items-center bottom-0'
-              style={{
-                left: `80%`,
-                transform: 'translateX(-50%)',
-              }}
+              className='absolute flex flex-col items-center bottom-0'
+              style={{ left: `80%`, transform: 'translateX(-50%)' }}
             >
-              <div className='h-[6px] w-[8.589px]'>
-                <svg
-                  className='block size-full'
-                  fill='none'
-                  preserveAspectRatio='none'
-                  viewBox='0 0 9 6'
-                >
-                  <path d={svgPathsStock.p44ee500} fill='#717680' />
-                </svg>
-              </div>
-              <p className='font-normal text-[12px] leading-none text-center text-[#535862] whitespace-nowrap pb-1'>
-                {product.stockMax} u
-              </p>
+              <div className='w-0.5 h-1.5 bg-gray-300 mb-0.5'></div>
+              <span className='text-[10px] text-gray-400 font-medium leading-none'>
+                Max
+              </span>
             </div>
           </div>
 
-          {/* Badge: Lots + Stock total */}
-          <div className='self-start bg-[#f5f5f6] flex gap-1.5 items-center pl-0.5 pr-2.5 py-0.5 rounded-[48px] border border-[#d5d7da] shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] flex-shrink-0 scale-[0.85]'>
-            <div
-              className={`flex gap-1 items-center pl-1.5 pr-2.5 py-0.5 rounded-[48px] ${
-                product.stock < product.stockMin
-                  ? 'bg-[#ea580c]'
-                  : 'bg-[#16a34a]'
-              }`}
-            >
-              <div className='relative shrink-0 size-[14px]'>
-                <svg
-                  className='block size-full'
-                  fill='none'
-                  preserveAspectRatio='none'
-                  viewBox='0 0 16 16'
-                >
-                  <path d={svgPathsStock.p15d46900} fill='white' />
-                </svg>
+          {/* Total Badge */}
+          <div className='flex flex-col items-end'>
+            <span className='text-[10px] text-gray-400 font-medium mb-0.5'>
+              En stock
+            </span>
+            <div className='bg-gray-50 flex gap-2 items-center px-2 py-1 rounded-lg border border-gray-200'>
+              <div
+                className={`flex gap-1 items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${
+                  product.stock < product.stockMin
+                    ? 'bg-orange-500'
+                    : 'bg-[#16a34a]'
+                }`}
+              >
+                Lot {product.lots}
               </div>
-              <p className='font-normal text-[14px] text-center text-white'>
-                {product.lots}
-              </p>
+              <span
+                className={`text-[12px] font-bold ${
+                  product.stock < product.stockMin
+                    ? 'text-orange-600'
+                    : 'text-[#16a34a]'
+                }`}
+              >
+                {product.stock}
+              </span>
             </div>
-            <p
-              className={`font-semibold text-[12px] text-center ${
-                product.stock < product.stockMin
-                  ? 'text-[#ea580c]'
-                  : 'text-[#16a34a]'
-              }`}
-            >
-              {product.stock} u
-            </p>
           </div>
         </div>
       </div>

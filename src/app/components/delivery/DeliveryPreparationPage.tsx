@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronLeft, Package, CheckCircle2, AlertCircle, ArrowLeft } from 'lucide-react';
+import {
+  ChevronLeft,
+  Package,
+  CheckCircle2,
+  AlertCircle,
+  ArrowLeft,
+} from 'lucide-react';
 import {
   products,
   clientLogos,
@@ -62,7 +68,8 @@ export default function DeliveryPreparationPage({
       <div className='flex flex-col h-full min-h-0 items-center justify-center p-4'>
         <p className='text-red-600 font-semibold mb-2'>Accès non autorisé</p>
         <p className='text-gray-600 text-sm text-center mb-4'>
-          Cette page est uniquement accessible pour les bons de préparation (BP) ou les bons de livraison (BL).
+          Cette page est uniquement accessible pour les bons de préparation (BP)
+          ou les bons de livraison (BL).
         </p>
         <button
           onClick={onBack}
@@ -299,7 +306,9 @@ export default function DeliveryPreparationPage({
             status: updatedPickingTask.status,
           });
         }
-        setScanSuccess(`${product.name}: +${quantityToAdd} u (Lot: ${lotNumber})`);
+        setScanSuccess(
+          `${product.name}: +${quantityToAdd} u (Lot: ${lotNumber})`
+        );
       } catch (error) {
         setScanError((error as Error).message || 'Erreur lors du scan');
       }
@@ -327,7 +336,9 @@ export default function DeliveryPreparationPage({
       updateDeliveryPreparation(legacyOrder.id, updatedPreparation);
       setPreparation(updatedPreparation);
 
-      setScanSuccess(`${product.name}: +${quantityToAdd} u (Lot: ${lotNumber})`);
+      setScanSuccess(
+        `${product.name}: +${quantityToAdd} u (Lot: ${lotNumber})`
+      );
     }
   };
 
@@ -347,7 +358,9 @@ export default function DeliveryPreparationPage({
         setIsValidated(true);
 
         // Get the created delivery note ID
-        const updatedPickingTask = getPickingTask(effectivePickingTask.pickingTaskId);
+        const updatedPickingTask = getPickingTask(
+          effectivePickingTask.pickingTaskId
+        );
         const deliveryNoteId = updatedPickingTask?.deliveryNoteId;
 
         // Update status via callback
@@ -365,7 +378,9 @@ export default function DeliveryPreparationPage({
           }
         }, 2000);
       } catch (error) {
-        setScanError((error as Error).message || 'Erreur lors de la validation');
+        setScanError(
+          (error as Error).message || 'Erreur lors de la validation'
+        );
       }
     } else if (isLegacyOrder && legacyOrder) {
       // Legacy: update DeliveryPreparation
@@ -448,7 +463,7 @@ export default function DeliveryPreparationPage({
             alt=''
             className='w-10 h-10 rounded object-cover flex-shrink-0'
           />
-          
+
           {/* Infos au centre */}
           <div className='flex-1 min-w-0'>
             <h2 className='font-semibold text-[15px] leading-tight truncate'>
@@ -462,7 +477,7 @@ export default function DeliveryPreparationPage({
                 : `${legacyOrder!.number} • ${legacyOrder!.type}`}
             </p>
           </div>
-          
+
           {/* Bouton à droite */}
           {effectivePickingTask && parentSalesOrder && (
             <button
@@ -515,36 +530,36 @@ export default function DeliveryPreparationPage({
           ? effectivePickingTask.status === 'PENDING' ||
             effectivePickingTask.status === 'IN_PROGRESS'
           : isLegacyOrder && legacyOrder!.status === 'En préparation') && (
-        <div className='flex-shrink-0 bg-white border-b border-gray-200 p-3'>
-          <button
-            type='button'
-            onClick={() => {
-              setIsScanModalOpen(true);
-              setScanError(null);
-              setScanSuccess(null);
+          <div className='flex-shrink-0 bg-white border-b border-gray-200 p-3'>
+            <button
+              type='button'
+              onClick={() => {
+                setIsScanModalOpen(true);
+                setScanError(null);
+                setScanSuccess(null);
 
-              setTimeout(() => {
-                setIsScanModalOpen(false);
-                simulateScan();
-              }, 650);
-            }}
-            className='w-full py-3 rounded-lg font-semibold text-[14px] bg-[#12895a] text-white hover:bg-[#107a4d] transition-all'
-          >
-            Scanner
-          </button>
+                setTimeout(() => {
+                  setIsScanModalOpen(false);
+                  simulateScan();
+                }, 650);
+              }}
+              className='w-full py-3 rounded-lg font-semibold text-[14px] bg-[#12895a] text-white hover:bg-[#107a4d] transition-all'
+            >
+              Scanner
+            </button>
 
-          {scanError && (
-            <p className='mt-2 text-[12px] text-red-600 font-medium'>
-              ⚠ {scanError}
-            </p>
-          )}
-          {scanSuccess && (
-            <p className='mt-2 text-[12px] text-green-600 font-medium'>
-              ✓ {scanSuccess}
-            </p>
-          )}
-        </div>
-      )}
+            {scanError && (
+              <p className='mt-2 text-[12px] text-red-600 font-medium'>
+                ⚠ {scanError}
+              </p>
+            )}
+            {scanSuccess && (
+              <p className='mt-2 text-[12px] text-green-600 font-medium'>
+                ✓ {scanSuccess}
+              </p>
+            )}
+          </div>
+        )}
 
       {/* Scrollable Product List */}
       <div className='flex-1 overflow-y-auto min-h-0'>
@@ -677,8 +692,8 @@ export default function DeliveryPreparationPage({
               {effectivePickingTask
                 ? `BP ${statusLabel.toLowerCase()}`
                 : isLegacyOrder &&
-                  (legacyOrder!.status === 'Prêt à expédier' &&
-                    'Bon de livraison prêt à expédier')}
+                  legacyOrder!.status === 'Prêt à expédier' &&
+                  'Bon de livraison prêt à expédier'}
               {isLegacyOrder &&
                 legacyOrder!.status === 'Expédié' &&
                 'Bon de livraison expédié'}

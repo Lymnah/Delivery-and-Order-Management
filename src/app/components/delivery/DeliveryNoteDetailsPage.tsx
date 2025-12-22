@@ -2,12 +2,12 @@ import React from 'react';
 import { ChevronLeft, Package, FileText, CheckCircle2, Printer } from 'lucide-react';
 import {
   products,
-  clientLogos,
   getDeliveryPreparation,
 } from '../../../data/database';
 import type { Order, DeliveryNoteStatus } from '../../../data/database';
 import { getStatusBadgeColor, getStatusLabel } from '../../utils/statusHelpers';
 import ProductCardCompact from '../ProductCardCompact';
+import OrderHeader from './OrderHeader';
 
 interface DeliveryNoteDetailsPageProps {
   order: Order;
@@ -84,30 +84,16 @@ export default function DeliveryNoteDetailsPage({
           <span className='text-[13px] font-semibold'>Retour</span>
         </button>
 
-        {/* Compact Header */}
-        <div className='flex items-start justify-between mb-1.5 pb-1.5 border-b border-gray-200'>
-          <div className='flex-1'>
-            <div className='flex items-center gap-2 mb-0.5'>
-              <h2 className='font-semibold text-[15px] leading-tight'>
-                {order.client}
-              </h2>
-              {/* Status Badge */}
-              <span
-                className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${statusColors.bg} ${statusColors.text}`}
-              >
-                {statusLabel}
-              </span>
-            </div>
-            <p className='text-[10px] text-gray-600 leading-tight'>
-              {order.number} • {order.type}
-            </p>
-          </div>
-          <img
-            src={clientLogos[order.client] || ''}
-            alt=''
-            className='w-8 h-8 rounded object-cover flex-shrink-0'
-          />
-        </div>
+        {/* Order Header */}
+        <OrderHeader
+          client={order.client}
+          documentNumber={`${order.number} • ${order.type}`}
+          statusBadge={{
+            label: statusLabel,
+            bgColor: statusColors.bg,
+            textColor: statusColors.text,
+          }}
+        />
       </div>
 
       {/* Scrollable Content */}

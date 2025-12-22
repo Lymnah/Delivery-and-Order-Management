@@ -11,6 +11,7 @@ import {
   type SalesOrderStatus,
 } from '../../../data/database';
 import ProductCardCompact from '../ProductCardCompact';
+import OrderHeader from '../delivery/OrderHeader';
 import {
   getStatusBadgeColor,
   getStatusLabel,
@@ -230,30 +231,16 @@ export default function OrderDetailsPage({
           <span className='text-[13px] font-semibold'>Retour</span>
         </button>
 
-        {/* Compact Header */}
-        <div className='flex items-start justify-between mb-1.5 pb-1.5 border-b border-gray-200'>
-          <div className='flex-1'>
-            <div className='flex items-center gap-2 mb-0.5'>
-              <h2 className='font-semibold text-[15px] leading-tight'>
-                {orderData.client}
-              </h2>
-              {/* Status Badge */}
-              <span
-                className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${statusColors.bg} ${statusColors.text}`}
-              >
-                {statusLabel}
-              </span>
-            </div>
-            <p className='text-[10px] text-gray-600 leading-tight'>
-              {orderData.number} • {effectiveSalesOrder ? 'BC' : legacyOrder!.type}
-            </p>
-          </div>
-          <img
-            src={clientLogos[orderData.client] || ''}
-            alt=''
-            className='w-8 h-8 rounded object-cover flex-shrink-0'
-          />
-        </div>
+        {/* Order Header */}
+        <OrderHeader
+          client={orderData.client}
+          documentNumber={`${orderData.number} • ${effectiveSalesOrder ? 'BC' : legacyOrder!.type}`}
+          statusBadge={{
+            label: statusLabel,
+            bgColor: statusColors.bg,
+            textColor: statusColors.text,
+          }}
+        />
 
         {/* Remaining Quantities Display (for SalesOrder with partial deliveries) */}
         {effectiveSalesOrder &&

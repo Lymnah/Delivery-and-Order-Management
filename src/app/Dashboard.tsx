@@ -42,41 +42,41 @@ const ongoingTasks: OngoingTask[] = [
 ];
 
 const dashboardModules = [
-  {
-    id: 'fabrication',
-    label: 'Fabrication',
-    color: 'bg-[#16a34a]',
-    borderColor: 'border-[#16a34a]',
-    icon: Factory,
-  },
-  {
-    id: 'conditionnement',
-    label: 'Conditionnement',
-    color: 'bg-[#2563eb]',
-    borderColor: 'border-[#2563eb]',
-    icon: Package,
-  },
-  {
-    id: 'traitement-thermique',
-    label: 'Traitement thermique',
-    color: 'bg-[#e11d48]',
-    borderColor: 'border-[#d5d7da]',
-    icon: Thermometer,
-  },
-  {
-    id: 'stock',
-    label: 'Stock',
-    color: 'bg-[#ca8a04]',
-    borderColor: 'border-[#ca8a04]',
-    icon: Warehouse,
-  },
-  {
-    id: 'labelisation',
-    label: 'Labélisation',
-    color: 'bg-[#ea580c]',
-    borderColor: 'border-[#ea580c]',
-    icon: Tag,
-  },
+  // {
+  //   id: 'fabrication',
+  //   label: 'Fabrication',
+  //   color: 'bg-[#16a34a]',
+  //   borderColor: 'border-[#16a34a]',
+  //   icon: Factory,
+  // },
+  // {
+  //   id: 'conditionnement',
+  //   label: 'Conditionnement',
+  //   color: 'bg-[#2563eb]',
+  //   borderColor: 'border-[#2563eb]',
+  //   icon: Package,
+  // },
+  // {
+  //   id: 'traitement-thermique',
+  //   label: 'Traitement thermique',
+  //   color: 'bg-[#e11d48]',
+  //   borderColor: 'border-[#d5d7da]',
+  //   icon: Thermometer,
+  // },
+  // {
+  //   id: 'stock',
+  //   label: 'Stock',
+  //   color: 'bg-[#ca8a04]',
+  //   borderColor: 'border-[#ca8a04]',
+  //   icon: Warehouse,
+  // },
+  // {
+  //   id: 'labelisation',
+  //   label: 'Labélisation',
+  //   color: 'bg-[#ea580c]',
+  //   borderColor: 'border-[#ea580c]',
+  //   icon: Tag,
+  // },
   {
     id: 'logistique',
     label: 'Logistique',
