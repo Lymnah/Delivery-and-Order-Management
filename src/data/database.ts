@@ -12,11 +12,12 @@ import imgTzatziki from '../assets/f4b9c2546699f16007b2437a15c440b7f521c550.png'
 // Types
 export type DocumentType = 'BC' | 'BL';
 
-// Order statuses (BC - Bon de Commande)
-export type OrderStatus =
+// Sales order statuses (BC - Bon de Commande)
+export type SalesOrderStatus =
   | 'Brouillon'
   | 'Confirmé'
-  | 'Transformé en BL'
+  | 'Partiellement livré'
+  | 'Livré'
   | 'Clos';
 
 // Delivery note statuses (BL - Bon de Livraison)
@@ -26,7 +27,11 @@ export type DeliveryNoteStatus =
   | 'Prêt à expédier'
   | 'Expédié'
   | 'Livré'
-  | 'Facturé';
+  | 'Facturé'
+  | 'Annulé';
+
+// Dispute status
+export type DisputeStatus = 'none' | 'open' | 'in_progress' | 'resolved';
 
 export interface Product {
   id: string;
@@ -52,7 +57,8 @@ export interface Order {
   items: OrderItem[];
   createdAt: Date;
   totalHT: number;
-  status?: OrderStatus | DeliveryNoteStatus; // Status depends on order type
+  status: SalesOrderStatus | DeliveryNoteStatus; // Status depends on order type (required)
+  disputeStatus?: DisputeStatus; // Optional dispute status
 }
 
 // Delivery preparation types
@@ -157,6 +163,7 @@ export const orders: Order[] = [
       { productId: '3', quantity: 200 },
     ],
     totalHT: 1500,
+    status: 'Confirmé',
   },
 
   // ===== 4 AUTRES COMMANDES CETTE SEMAINE (total 5 avec celle d'aujourd'hui) =====
@@ -173,6 +180,7 @@ export const orders: Order[] = [
       { productId: '4', quantity: 1000 },
     ],
     totalHT: 2000,
+    status: 'À préparer',
   },
   {
     id: '3',
@@ -187,6 +195,7 @@ export const orders: Order[] = [
       { productId: '5', quantity: 130 },
     ],
     totalHT: 1800,
+    status: 'Brouillon',
   },
   {
     id: '4',
@@ -201,6 +210,7 @@ export const orders: Order[] = [
       { productId: '6', quantity: 80 },
     ],
     totalHT: 2200,
+    status: 'Confirmé',
   },
   {
     id: '5',
@@ -215,6 +225,7 @@ export const orders: Order[] = [
       { productId: '5', quantity: 75 },
     ],
     totalHT: 1950,
+    status: 'Confirmé',
   },
 
   // ===== 10 AUTRES COMMANDES DANS LE MOIS (total 15 avec celles de cette semaine) =====
@@ -231,6 +242,7 @@ export const orders: Order[] = [
       { productId: '6', quantity: 60 },
     ],
     totalHT: 1750,
+    status: 'Brouillon',
   },
   {
     id: '7',
@@ -245,6 +257,7 @@ export const orders: Order[] = [
       { productId: '5', quantity: 120 },
     ],
     totalHT: 2100,
+    status: 'Confirmé',
   },
   {
     id: '8',
@@ -259,6 +272,7 @@ export const orders: Order[] = [
       { productId: '3', quantity: 175 },
     ],
     totalHT: 2450,
+    status: 'À préparer',
   },
   {
     id: '9',
@@ -273,6 +287,7 @@ export const orders: Order[] = [
       { productId: '6', quantity: 50 },
     ],
     totalHT: 1900,
+    status: 'À préparer',
   },
   {
     id: '10',
@@ -287,6 +302,7 @@ export const orders: Order[] = [
       { productId: '4', quantity: 100 },
     ],
     totalHT: 2500,
+    status: 'Confirmé',
   },
   {
     id: '11',
@@ -301,6 +317,7 @@ export const orders: Order[] = [
       { productId: '6', quantity: 80 },
     ],
     totalHT: 1800,
+    status: 'À préparer',
   },
   {
     id: '12',
@@ -315,6 +332,7 @@ export const orders: Order[] = [
       { productId: '4', quantity: 85 },
     ],
     totalHT: 1950,
+    status: 'Brouillon',
   },
   {
     id: '13',
@@ -329,6 +347,7 @@ export const orders: Order[] = [
       { productId: '6', quantity: 70 },
     ],
     totalHT: 2100,
+    status: 'Confirmé',
   },
   {
     id: '14',
@@ -343,6 +362,7 @@ export const orders: Order[] = [
       { productId: '3', quantity: 190 },
     ],
     totalHT: 2300,
+    status: 'À préparer',
   },
   {
     id: '15',
@@ -357,6 +377,7 @@ export const orders: Order[] = [
       { productId: '6', quantity: 75 },
     ],
     totalHT: 2000,
+    status: 'Brouillon',
   },
 
   // ===== Commandes futures (après le mois) pour avoir un échantillon complet =====
@@ -372,6 +393,7 @@ export const orders: Order[] = [
       { productId: '3', quantity: 220 },
     ],
     totalHT: 2600,
+    status: 'Confirmé',
   },
   {
     id: '17',
@@ -385,6 +407,7 @@ export const orders: Order[] = [
       { productId: '5', quantity: 105 },
     ],
     totalHT: 1900,
+    status: 'À préparer',
   },
 ];
 
@@ -444,4 +467,18 @@ export const resetProductLots = (productId: string): void => {
       });
     }
   });
+};
+
+// Helper function to update order status
+export const updateOrderStatus = (
+  orderId: string,
+  newStatus: SalesOrderStatus | DeliveryNoteStatus
+): void => {
+  const orderIndex = orders.findIndex((o) => o.id === orderId);
+  if (orderIndex !== -1) {
+    orders[orderIndex] = {
+      ...orders[orderIndex],
+      status: newStatus,
+    };
+  }
 };

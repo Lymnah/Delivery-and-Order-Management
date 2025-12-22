@@ -3,6 +3,7 @@ import { fr } from 'date-fns/locale';
 import { clientLogos } from '../../../data/database';
 import type { Order } from '../../../data/database';
 import { getDaysUntil } from '../../utils/dateHelpers';
+import { getStatusBadgeColor, getStatusLabel } from '../../utils/statusHelpers';
 
 interface OrderCardProps {
   order: Order;
@@ -13,6 +14,8 @@ interface OrderCardProps {
 export default function OrderCard({ order, today, onClick }: OrderCardProps) {
   const totalQty = order.items.reduce((sum, item) => sum + item.quantity, 0);
   const daysUntil = getDaysUntil(order.deliveryDate, today);
+  const statusColors = getStatusBadgeColor(order.status);
+  const statusLabel = getStatusLabel(order.status);
 
   // Color code for date
   let dateColor = 'text-gray-600';
@@ -34,16 +37,31 @@ export default function OrderCard({ order, today, onClick }: OrderCardProps) {
           : 'border-orange-300 bg-orange-50/40 hover:bg-orange-50'
       }`}
     >
-      {/* Badge BC/BL */}
-      <span
-        className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-semibold ${
-          order.type === 'BC'
-            ? 'bg-blue-100 text-blue-700'
-            : 'bg-orange-100 text-orange-700'
-        }`}
-      >
-        {order.type}
-      </span>
+      {/* Badges: BC/BL and Status */}
+      <div className='absolute top-3 right-3 flex items-center gap-1.5'>
+        {/* Status Badge */}
+        <span
+          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${statusColors.bg} ${statusColors.text}`}
+        >
+          {statusLabel}
+        </span>
+        {/* Type Badge */}
+        <span
+          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+            order.type === 'BC'
+              ? 'bg-blue-100 text-blue-700'
+              : 'bg-orange-100 text-orange-700'
+          }`}
+        >
+          {order.type}
+        </span>
+        {/* Dispute Badge */}
+        {order.disputeStatus && order.disputeStatus !== 'none' && (
+          <span className='px-1.5 py-0.5 rounded text-[9px] font-semibold bg-red-100 text-red-700'>
+            Litige
+          </span>
+        )}
+      </div>
 
       <div className='flex items-start gap-3'>
         {/* Customer Logo */}

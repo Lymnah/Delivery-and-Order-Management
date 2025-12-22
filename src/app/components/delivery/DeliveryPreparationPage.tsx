@@ -13,6 +13,7 @@ import type {
   DeliveryNoteStatus,
 } from '../../../data/database';
 import ProductPreparationCard from './ProductPreparationCard';
+import { getStatusBadgeColor, getStatusLabel } from '../../utils/statusHelpers';
 
 type PreparationState =
   | 'not-prepared'
@@ -23,13 +24,40 @@ interface DeliveryPreparationPageProps {
   order: Order;
   onBack: () => void;
   onValidationComplete?: () => void;
+  onStatusUpdate?: (orderId: string, newStatus: DeliveryNoteStatus) => void;
+  onRedirectToStockCheck?: () => void;
+  onRedirectToDetails?: () => void;
 }
 
 export default function DeliveryPreparationPage({
   order,
   onBack,
   onValidationComplete,
+  onStatusUpdate,
+  onRedirectToStockCheck,
+  onRedirectToDetails,
 }: DeliveryPreparationPageProps) {
+  // Check if document type is valid (must be BL)
+  if (order.type !== 'BL') {
+    return (
+      <div className='flex flex-col h-full min-h-0 items-center justify-center p-4'>
+        <p className='text-red-600 font-semibold mb-2'>Accès non autorisé</p>
+        <p className='text-gray-600 text-sm text-center mb-4'>
+          Cette page est uniquement accessible pour les bons de livraison (BL).
+        </p>
+        <button
+          onClick={onBack}
+          className='px-4 py-2 bg-[#12895a] text-white rounded-lg font-semibold'
+        >
+          Retour
+        </button>
+      </div>
+    );
+  }
+
+  // Calculate read-only mode: read-only if status !== 'En préparation'
+  const isReadOnly = order.status !== 'En préparation';
+
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanSuccess, setScanSuccess] = useState<string | null>(null);
   const [isValidated, setIsValidated] = useState(false);
@@ -40,6 +68,9 @@ export default function DeliveryPreparationPage({
   const [preparation, setPreparation] = useState(() =>
     getDeliveryPreparation(order.id)
   );
+
+  const statusColors = getStatusBadgeColor(order.status);
+  const statusLabel = getStatusLabel(order.status);
 
   // Initialize lots plan once per order
   useEffect(() => {
@@ -209,6 +240,7 @@ export default function DeliveryPreparationPage({
   // Validate delivery
   const validateDelivery = () => {
     if (!isDeliveryReady()) return;
+    if (order.status !== 'En préparation') return;
 
     const updatedPreparation = {
       ...preparation,
@@ -220,7 +252,12 @@ export default function DeliveryPreparationPage({
     setPreparation(updatedPreparation);
     setIsValidated(true);
 
-    // Show confirmation and navigate back after 2 seconds
+    // Update order status
+    if (onStatusUpdate) {
+      onStatusUpdate(order.id, 'Prêt à expédier');
+    }
+
+    // Show confirmation and navigate to details page after 2 seconds
     setTimeout(() => {
       if (onValidationComplete) {
         onValidationComplete();
@@ -251,48 +288,8 @@ export default function DeliveryPreparationPage({
     return state === 'fully-prepared';
   });
 
-  // Status badge configuration
-  const statusConfig = {
-    'À préparer': {
-      label: 'À préparer',
-      bgColor: 'bg-gray-100',
-      textColor: 'text-gray-700',
-      icon: AlertCircle,
-    },
-    'En préparation': {
-      label: 'En préparation',
-      bgColor: 'bg-orange-100',
-      textColor: 'text-orange-700',
-      icon: AlertCircle,
-    },
-    'Prêt à expédier': {
-      label: 'Prêt à expédier',
-      bgColor: 'bg-green-100',
-      textColor: 'text-green-700',
-      icon: CheckCircle2,
-    },
-    Expédié: {
-      label: 'Expédié',
-      bgColor: 'bg-blue-100',
-      textColor: 'text-blue-700',
-      icon: Package,
-    },
-    Livré: {
-      label: 'Livré',
-      bgColor: 'bg-purple-100',
-      textColor: 'text-purple-700',
-      icon: CheckCircle2,
-    },
-    Facturé: {
-      label: 'Facturé',
-      bgColor: 'bg-gray-100',
-      textColor: 'text-gray-700',
-      icon: CheckCircle2,
-    },
-  };
-
-  const currentStatusConfig = statusConfig[preparation.status];
-  const StatusIcon = currentStatusConfig.icon;
+  // Status badge uses order.status (not preparation.status)
+  // statusColors and statusLabel are already defined above
 
   return (
     <div className='flex flex-col h-full min-h-0'>
@@ -326,14 +323,11 @@ export default function DeliveryPreparationPage({
 
         {/* Status Badge */}
         <div className='mb-3'>
-          <div
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${currentStatusConfig.bgColor} ${currentStatusConfig.textColor}`}
+          <span
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-semibold ${statusColors.bg} ${statusColors.text}`}
           >
-            <StatusIcon className='w-4 h-4' />
-            <span className='text-[12px] font-semibold'>
-              {currentStatusConfig.label}
-            </span>
-          </div>
+            {statusLabel}
+          </span>
         </div>
 
         {/* Global Progress Indicator */}
@@ -356,7 +350,7 @@ export default function DeliveryPreparationPage({
       </div>
 
       {/* Scanning Button Section */}
-      {!isValidated && (
+      {!isValidated && order.status === 'En préparation' && (
         <div className='flex-shrink-0 bg-white border-b border-gray-200 p-3'>
           <button
             type='button'
@@ -513,19 +507,35 @@ export default function DeliveryPreparationPage({
             </p>
             <p className='text-[11px] text-green-600'>Retour à la liste...</p>
           </div>
+        ) : isReadOnly ? (
+          <div className='bg-gray-50 border border-gray-200 rounded-lg p-3 text-center'>
+            <p className='text-[13px] font-semibold text-gray-700 mb-1'>
+              {order.status === 'Prêt à expédier' && 'Bon de livraison prêt à expédier'}
+              {order.status === 'Expédié' && 'Bon de livraison expédié'}
+              {order.status === 'Livré' && 'Bon de livraison livré'}
+              {order.status === 'Facturé' && 'Bon de livraison facturé'}
+              {order.status === 'Annulé' && 'Bon de livraison annulé'}
+              {!['Prêt à expédier', 'Expédié', 'Livré', 'Facturé', 'Annulé'].includes(order.status) && 'Bon de livraison en lecture seule'}
+            </p>
+            <p className='text-[11px] text-gray-600'>
+              Aucune action disponible à ce statut
+            </p>
+          </div>
         ) : (
-          <button
-            onClick={validateDelivery}
-            disabled={!isDeliveryReady()}
-            className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
-              isDeliveryReady()
-                ? 'bg-[#12895a] text-white hover:bg-[#107a4d]'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            <CheckCircle2 className='w-5 h-5' />
-            Valider le bon de livraison
-          </button>
+          order.status === 'En préparation' && (
+            <button
+              onClick={validateDelivery}
+              disabled={!isDeliveryReady()}
+              className={`w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
+                isDeliveryReady()
+                  ? 'bg-[#12895a] text-white hover:bg-[#107a4d]'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
+            >
+              <CheckCircle2 className='w-5 h-5' />
+              Valider le bon de livraison
+            </button>
+          )
         )}
       </div>
     </div>

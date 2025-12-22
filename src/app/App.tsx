@@ -30,8 +30,10 @@ import {
   products,
   orders,
   clientLogos,
+  updateOrderStatus,
   type Product,
   type Order,
+  type DeliveryNoteStatus,
 } from '../data/database';
 import Dashboard from './Dashboard';
 import ProductCard from './components/ProductCard';
@@ -43,6 +45,7 @@ import LogistiqueSelection from './components/logistics/LogistiqueSelection';
 import LogistiqueCommandes from './components/logistics/LogistiqueCommandes';
 import OrderDetailsPage from './components/orders/OrderDetailsPage';
 import DeliveryPreparationPage from './components/delivery/DeliveryPreparationPage';
+import DeliveryNoteDetailsPage from './components/delivery/DeliveryNoteDetailsPage';
 import ManufacturingOrderModal from './components/modals/ManufacturingOrderModal';
 import PeriodSelectorModal from './components/modals/PeriodSelectorModal';
 import DocumentPickerModal from './components/modals/DocumentPickerModal';
@@ -74,6 +77,9 @@ export default function App() {
     orders: ordersWithCurrentDates,
     getOrdersForDate: getOrdersForDateHelper,
     getSortedOrders,
+    getOrdersForAtelier,
+    getOrdersForDateAtelier,
+    getSortedOrdersAtelier,
   } = useOrders(now);
 
   const [view, setView] = useState<'list' | 'calendar'>('list');
@@ -95,6 +101,7 @@ export default function App() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetailsPage, setShowOrderDetailsPage] = useState(false);
   const [showDeliveryPreparation, setShowDeliveryPreparation] = useState(false);
+  const [showDeliveryNoteDetails, setShowDeliveryNoteDetails] = useState(false);
   const [selectedProductsInOrder, setSelectedProductsInOrder] = useState<
     string[]
   >([]);
@@ -161,11 +168,11 @@ export default function App() {
 
   // Helper functions
   const getOrdersForDate = (date: Date) => {
-    return getOrdersForDateHelper(date);
+    return getOrdersForDateAtelier(date);
   };
 
   const getSortedOrdersByUrgency = () => {
-    return getSortedOrders();
+    return getSortedOrdersAtelier();
   };
 
   const getAggregatedProducts = () => {
@@ -183,10 +190,55 @@ export default function App() {
     );
   };
 
+  // Function to update order status
+  const handleStatusUpdate = (
+    orderId: string,
+    newStatus: DeliveryNoteStatus
+  ) => {
+    updateOrderStatus(orderId, newStatus);
+    // Update selectedOrder if it's the same order
+    if (selectedOrder && selectedOrder.id === orderId) {
+      setSelectedOrder({
+        ...selectedOrder,
+        status: newStatus,
+      });
+    }
+    // Force re-render by updating orders list
+    // The useOrders hook will handle this automatically
+  };
+
   const openOrderDetails = (order: Order) => {
     setSelectedOrder(order);
     setSelectedProductsInOrder([]);
-    setShowOrderDetailsPage(true);
+    setShowOrderDetailsPage(false);
+    setShowDeliveryPreparation(false);
+    setShowDeliveryNoteDetails(false);
+
+    // Navigation logic based on order type and status
+    if (order.type === 'BC') {
+      // BC: Navigate to BC detail page (to be implemented later)
+      // For now, show order details page
+      setShowOrderDetailsPage(true);
+    } else if (order.type === 'BL') {
+      // BL: Navigate based on status
+      const status = order.status as DeliveryNoteStatus;
+      if (status === 'À préparer') {
+        setShowOrderDetailsPage(true);
+      } else if (status === 'En préparation') {
+        setShowDeliveryPreparation(true);
+      } else if (
+        status === 'Prêt à expédier' ||
+        status === 'Expédié' ||
+        status === 'Livré' ||
+        status === 'Facturé' ||
+        status === 'Annulé'
+      ) {
+        setShowDeliveryNoteDetails(true);
+      } else {
+        // Default fallback
+        setShowOrderDetailsPage(true);
+      }
+    }
   };
 
   const handleDashboardNavigate = (module: string) => {
@@ -231,9 +283,19 @@ export default function App() {
                 setShowOrderDetailsPage(true);
               }}
               onValidationComplete={() => {
+                // After validation, navigate to delivery note details page
                 setShowDeliveryPreparation(false);
+                setShowDeliveryNoteDetails(true);
                 setCurrentView('logistique-commandes');
+              }}
+              onStatusUpdate={handleStatusUpdate}
+              onRedirectToStockCheck={() => {
+                setShowDeliveryPreparation(false);
                 setShowOrderDetailsPage(true);
+              }}
+              onRedirectToDetails={() => {
+                setShowDeliveryPreparation(false);
+                setShowDeliveryNoteDetails(true);
               }}
             />
           </div>
@@ -283,6 +345,18 @@ export default function App() {
                   setShowDeliveryPreparation(true);
                   setCurrentView('delivery-preparation');
                 }}
+                onStatusUpdate={handleStatusUpdate}
+              />
+            ) : mode === 'clients' &&
+              showDeliveryNoteDetails &&
+              selectedOrder ? (
+              <DeliveryNoteDetailsPage
+                order={selectedOrder}
+                onBack={() => {
+                  setShowDeliveryNoteDetails(false);
+                  setSelectedOrder(null);
+                }}
+                onStatusUpdate={handleStatusUpdate}
               />
             ) : (
               <>
@@ -831,6 +905,18 @@ export default function App() {
                   setShowDeliveryPreparation(true);
                   setCurrentView('delivery-preparation');
                 }}
+                onStatusUpdate={handleStatusUpdate}
+              />
+            ) : mode === 'clients' &&
+              showDeliveryNoteDetails &&
+              selectedOrder ? (
+              <DeliveryNoteDetailsPage
+                order={selectedOrder}
+                onBack={() => {
+                  setShowDeliveryNoteDetails(false);
+                  setSelectedOrder(null);
+                }}
+                onStatusUpdate={handleStatusUpdate}
               />
             ) : null}
 
@@ -1057,7 +1143,7 @@ export default function App() {
               <>
                 {view === 'list' && (
                   <OrdersListInline
-                    orders={ordersWithCurrentDates}
+                    orders={getOrdersForAtelier()}
                     today={now}
                     onOrderClick={openOrderDetails}
                   />
@@ -1480,7 +1566,7 @@ export default function App() {
           {/* Document Picker Modal */}
           {showDocumentPickerModal && (
             <DocumentPickerModal
-              orders={ordersWithCurrentDates}
+              orders={getOrdersForAtelier()}
               today={now}
               onOrderClick={openOrderDetails}
               onClose={() => setShowDocumentPickerModal(false)}

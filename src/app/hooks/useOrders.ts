@@ -3,6 +3,9 @@ import {
   getOrdersWithCurrentDates,
   getOrdersForDate,
   getSortedOrdersByUrgency,
+  getOrdersForAtelier,
+  getOrdersForDateAtelier,
+  getSortedOrdersByUrgencyAtelier,
 } from '../utils/orderHelpers';
 import type { Order } from '../../data/database';
 
@@ -23,10 +26,25 @@ export const useOrders = (today: Date) => {
     return getSortedOrdersByUrgency(today);
   };
 
+  const getOrdersForAtelierHelper = (): Order[] => {
+    return getOrdersForAtelier(today);
+  };
+
+  const getOrdersForDateAtelierHelper = (date: Date): Order[] => {
+    return getOrdersForDateAtelier(date, today);
+  };
+
+  const getSortedOrdersAtelier = (): Order[] => {
+    return getSortedOrdersByUrgencyAtelier(today);
+  };
+
   return {
     orders: ordersWithCurrentDates,
     getOrdersForDate: getOrdersForDateHelper,
     getSortedOrders,
+    getOrdersForAtelier: getOrdersForAtelierHelper,
+    getOrdersForDateAtelier: getOrdersForDateAtelierHelper,
+    getSortedOrdersAtelier,
   };
 };
 
