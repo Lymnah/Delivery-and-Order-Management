@@ -165,5 +165,3 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     </div>
   );
 }
-
-

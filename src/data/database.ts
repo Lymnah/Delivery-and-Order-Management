@@ -12,6 +12,22 @@ import imgTzatziki from '../assets/f4b9c2546699f16007b2437a15c440b7f521c550.png'
 // Types
 export type DocumentType = 'BC' | 'BL';
 
+// Order statuses (BC - Bon de Commande)
+export type OrderStatus =
+  | 'Brouillon'
+  | 'Confirmé'
+  | 'Transformé en BL'
+  | 'Clos';
+
+// Delivery note statuses (BL - Bon de Livraison)
+export type DeliveryNoteStatus =
+  | 'À préparer'
+  | 'En préparation'
+  | 'Prêt à expédier'
+  | 'Expédié'
+  | 'Livré'
+  | 'Facturé';
+
 export interface Product {
   id: string;
   name: string;
@@ -36,6 +52,25 @@ export interface Order {
   items: OrderItem[];
   createdAt: Date;
   totalHT: number;
+  status?: OrderStatus | DeliveryNoteStatus; // Status depends on order type
+}
+
+// Delivery preparation types
+export interface ScannedLot {
+  productId: string;
+  lotNumber: string;
+  quantity: number;
+  scannedAt: Date;
+}
+
+export interface DeliveryPreparation {
+  orderId: string;
+  status: DeliveryNoteStatus;
+  scannedLots: ScannedLot[];
+  preparedAt?: Date;
+  shippedAt?: Date;
+  deliveredAt?: Date;
+  invoicedAt?: Date;
 }
 
 // Fonction pour obtenir la date actuelle (minuit)
@@ -358,4 +393,55 @@ export const clientLogos: Record<string, string> = {
   Carrefour: imgCarrefour,
   Auchan: imgAuchan,
   Leclerc: imgLeclerc,
+};
+
+// Delivery preparation mock data
+// In a real app, this would be stored in a database
+export const deliveryPreparations: Map<string, DeliveryPreparation> = new Map();
+
+// Helper function to get or create delivery preparation for an order
+export const getDeliveryPreparation = (
+  orderId: string
+): DeliveryPreparation => {
+  if (!deliveryPreparations.has(orderId)) {
+    // Initialize with "À préparer" status for new orders
+    const order = orders.find((o) => o.id === orderId);
+    deliveryPreparations.set(orderId, {
+      orderId,
+      status: order?.type === 'BL' ? 'À préparer' : 'À préparer',
+      scannedLots: [],
+    });
+  }
+  return deliveryPreparations.get(orderId)!;
+};
+
+// Helper function to update delivery preparation
+export const updateDeliveryPreparation = (
+  orderId: string,
+  updates: Partial<DeliveryPreparation>
+): void => {
+  const current = getDeliveryPreparation(orderId);
+  deliveryPreparations.set(orderId, { ...current, ...updates });
+};
+
+// Helper function to reset lots for a specific product in all orders
+export const resetProductLots = (productId: string): void => {
+  deliveryPreparations.forEach((prep, orderId) => {
+    const filteredLots = prep.scannedLots.filter(
+      (lot) => lot.productId !== productId
+    );
+    if (filteredLots.length !== prep.scannedLots.length) {
+      deliveryPreparations.set(orderId, {
+        ...prep,
+        scannedLots: filteredLots,
+        // Reset status to "À préparer" if no lots remain
+        status:
+          filteredLots.length === 0
+            ? 'À préparer'
+            : prep.status === 'Prêt à expédier'
+            ? 'En préparation'
+            : prep.status,
+      });
+    }
+  });
 };

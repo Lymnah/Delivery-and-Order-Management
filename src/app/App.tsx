@@ -42,6 +42,7 @@ import HomeIndicator from './components/layout/HomeIndicator';
 import LogistiqueSelection from './components/logistics/LogistiqueSelection';
 import LogistiqueCommandes from './components/logistics/LogistiqueCommandes';
 import OrderDetailsPage from './components/orders/OrderDetailsPage';
+import DeliveryPreparationPage from './components/delivery/DeliveryPreparationPage';
 import ManufacturingOrderModal from './components/modals/ManufacturingOrderModal';
 import PeriodSelectorModal from './components/modals/PeriodSelectorModal';
 import DocumentPickerModal from './components/modals/DocumentPickerModal';
@@ -92,6 +93,7 @@ export default function App() {
   } = useFilters(now);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetailsPage, setShowOrderDetailsPage] = useState(false);
+  const [showDeliveryPreparation, setShowDeliveryPreparation] = useState(false);
   const [selectedProductsInOrder, setSelectedProductsInOrder] = useState<
     string[]
   >([]);
@@ -217,6 +219,24 @@ export default function App() {
           }}
           onNavigateToDashboard={() => setCurrentView('dashboard')}
         />
+      ) : currentView === 'delivery-preparation' && selectedOrder ? (
+        <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
+          <div className='absolute bg-white top-[87px] left-0 w-[393px] h-[691px] flex flex-col overflow-hidden'>
+            <DeliveryPreparationPage
+              order={selectedOrder}
+              onBack={() => {
+                setShowDeliveryPreparation(false);
+                setCurrentView('logistique-commandes');
+                setShowOrderDetailsPage(true);
+              }}
+              onValidationComplete={() => {
+                setShowDeliveryPreparation(false);
+                setCurrentView('logistique-commandes');
+                setShowOrderDetailsPage(true);
+              }}
+            />
+          </div>
+        </div>
       ) : currentView === 'logistique-commandes' ? (
         // Vue Commandes - Sections par jour + Bouton bascule Liste/Calendrier + Filtres rapides
         <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
@@ -256,6 +276,11 @@ export default function App() {
                   setManufacturingQuantities(quantities);
                   setShowOrderDetailsPage(false);
                   setShowManufacturingOrder(true);
+                }}
+                onPrepareDelivery={() => {
+                  setShowOrderDetailsPage(false);
+                  setShowDeliveryPreparation(true);
+                  setCurrentView('delivery-preparation');
                 }}
               />
             ) : (
@@ -799,6 +824,11 @@ export default function App() {
                   setManufacturingQuantities(quantities);
                   setShowOrderDetailsPage(false);
                   setShowManufacturingOrder(true);
+                }}
+                onPrepareDelivery={() => {
+                  setShowOrderDetailsPage(false);
+                  setShowDeliveryPreparation(true);
+                  setCurrentView('delivery-preparation');
                 }}
               />
             ) : null}

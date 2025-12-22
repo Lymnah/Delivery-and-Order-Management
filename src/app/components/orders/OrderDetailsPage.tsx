@@ -12,6 +12,7 @@ interface OrderDetailsPageProps {
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onCreateManufacturingOrder: (quantities: Record<string, number>) => void;
+  onPrepareDelivery?: () => void;
 }
 
 export default function OrderDetailsPage({
@@ -22,6 +23,7 @@ export default function OrderDetailsPage({
   onSelectAll,
   onDeselectAll,
   onCreateManufacturingOrder,
+  onPrepareDelivery,
 }: OrderDetailsPageProps) {
   const allProductsOk = order.items.every((item) => {
     const product = products.find((p) => p.id === item.productId);
@@ -185,9 +187,14 @@ export default function OrderDetailsPage({
         {/* Prepare order button */}
         <button
           disabled={!allProductsOk}
+          onClick={() => {
+            if (allProductsOk && onPrepareDelivery) {
+              onPrepareDelivery();
+            }
+          }}
           className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
             allProductsOk
-              ? 'bg-[#12895a] text-white hover:bg-[#107a4d]'
+              ? 'bg-[#12895a] text-white hover:bg-[#107a4d] cursor-pointer'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
         >

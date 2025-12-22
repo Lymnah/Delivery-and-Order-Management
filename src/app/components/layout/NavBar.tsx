@@ -7,7 +7,8 @@ export type ViewType =
   | 'dashboard'
   | 'logistique-selection'
   | 'logistique'
-  | 'logistique-commandes';
+  | 'logistique-commandes'
+  | 'delivery-preparation';
 
 interface NavBarProps {
   currentView: ViewType;
@@ -38,7 +39,8 @@ export default function NavBar({ currentView, onViewChange }: NavBarProps) {
       >
         {(currentView === 'logistique' ||
           currentView === 'logistique-selection' ||
-          currentView === 'logistique-commandes') && (
+          currentView === 'logistique-commandes' ||
+          currentView === 'delivery-preparation') && (
           <div className='w-16 h-1 bg-white rounded-b-lg mb-5'></div>
         )}
         <DescriptionIcon
@@ -47,13 +49,15 @@ export default function NavBar({ currentView, onViewChange }: NavBarProps) {
             marginBottom:
               currentView === 'logistique' ||
               currentView === 'logistique-selection' ||
-              currentView === 'logistique-commandes'
+              currentView === 'logistique-commandes' ||
+              currentView === 'delivery-preparation'
                 ? '0px'
                 : '4px',
             opacity:
               currentView === 'logistique' ||
               currentView === 'logistique-selection' ||
-              currentView === 'logistique-commandes'
+              currentView === 'logistique-commandes' ||
+              currentView === 'delivery-preparation'
                 ? 1
                 : 0.5,
           }}
