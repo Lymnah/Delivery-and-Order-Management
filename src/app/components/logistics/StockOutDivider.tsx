@@ -35,41 +35,55 @@ export default function StockOutDivider({
   }
 
   return (
-    <div className='my-4 w-full'>
-      {/* Content: Title and Products */}
-      <div className='bg-red-50 border border-red-200 rounded-lg px-3 py-2 w-full'>
-        {/* Ligne 1: Title */}
-        <div className='mb-2'>
-          <span className='text-xs font-bold text-red-600'>
-            Stock Épuisé à partir d'ici
-          </span>
-        </div>
-
-        {/* Lignes suivantes: Products (photo + nom) */}
-        <div className='space-y-1.5'>
-          {outOfStockProducts.map((product) => (
-            <div key={product.id} className='flex items-center gap-2'>
-              {/* Product Image */}
+    <div className='flex items-center gap-2 my-4 w-full'>
+      {/* Content: Product Images, Names, and Message */}
+      <div className='flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 w-full'>
+        {/* Product Images */}
+        <div className='flex items-center gap-1.5 flex-shrink-0'>
+          {outOfStockProducts.map((product, index) => (
+            <div key={product.id} className='relative'>
               {product.imageUrl ? (
                 <img
                   src={product.imageUrl}
                   alt={product.name}
-                  className='w-8 h-8 rounded object-cover border border-red-300 flex-shrink-0'
+                  className='w-8 h-8 rounded object-cover border border-red-300'
                 />
               ) : (
-                <div className='w-8 h-8 rounded bg-red-100 border border-red-300 flex items-center justify-center flex-shrink-0'>
+                <div className='w-8 h-8 rounded bg-red-100 border border-red-300 flex items-center justify-center'>
                   <span className='text-[8px] font-bold text-red-600'>
                     {product.name.charAt(0)}
                   </span>
                 </div>
               )}
-
-              {/* Product Name */}
-              <span className='text-xs font-semibold text-red-900'>
-                {product.name}
-              </span>
+              {/* Overlay indicator for multiple products */}
+              {outOfStockProducts.length > 1 && index === 0 && (
+                <div className='absolute -bottom-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white flex items-center justify-center'>
+                  <span className='text-[8px] font-bold text-white'>
+                    +{outOfStockProducts.length - 1}
+                  </span>
+                </div>
+              )}
             </div>
           ))}
+        </div>
+
+        {/* Product Names and Message */}
+        <div className='flex items-center gap-2 flex-1 min-w-0'>
+          <div className='flex items-center gap-1.5 flex-wrap'>
+            {outOfStockProducts.map((product, index) => (
+              <React.Fragment key={product.id}>
+                <span className='text-xs font-semibold text-red-900 whitespace-nowrap'>
+                  {product.name}
+                </span>
+                {index < outOfStockProducts.length - 1 && (
+                  <span className='text-xs text-red-400'>•</span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+          <span className='text-xs font-bold text-red-600 whitespace-nowrap ml-2'>
+            Stock Épuisé à partir d'ici
+          </span>
         </div>
       </div>
     </div>
