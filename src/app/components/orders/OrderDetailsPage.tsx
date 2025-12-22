@@ -1,35 +1,94 @@
-import React from 'react';
-import { ChevronLeft, Package, Plus } from 'lucide-react';
-import { products, clientLogos } from '../../../data/database';
-import type { Order, DeliveryNoteStatus } from '../../../data/database';
+import React, { useMemo } from 'react';
+import { ChevronLeft, Package, Plus, Play, Eye } from 'lucide-react';
+import {
+  products,
+  clientLogos,
+  getRemainingQuantities,
+  getPickingTasksBySalesOrder,
+  type SalesOrder,
+  type Order,
+  type DeliveryNoteStatus,
+  type SalesOrderStatus,
+} from '../../../data/database';
 import ProductCardCompact from '../ProductCardCompact';
-import { getStatusBadgeColor, getStatusLabel } from '../../utils/statusHelpers';
+import {
+  getStatusBadgeColor,
+  getStatusLabel,
+  getSalesOrderStatusLabelFr,
+} from '../../utils/statusHelpers';
 
 interface OrderDetailsPageProps {
-  order: Order;
+  // Support both SalesOrder (new) and Order (legacy) for backward compatibility
+  salesOrder?: SalesOrder;
+  order?: Order; // Legacy support
   selectedProductsInOrder: string[];
   onBack: () => void;
   onSelectionToggle: (productId: string) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onCreateManufacturingOrder: (quantities: Record<string, number>) => void;
-  onPrepareDelivery?: () => void;
-  onStatusUpdate?: (orderId: string, newStatus: DeliveryNoteStatus) => void;
+  onCreatePickingTask?: (salesOrderId: string) => void; // New: Create BP from BC
+  onViewPickingTask?: (pickingTaskId: string) => void; // New: View active BP
+  onViewDeliveryNotes?: (salesOrderId: string) => void; // New: View BLs
+  onPrepareDelivery?: () => void; // Legacy: for BL
+  onStatusUpdate?: (
+    orderId: string,
+    newStatus: DeliveryNoteStatus | SalesOrderStatus
+  ) => void;
 }
 
 export default function OrderDetailsPage({
-  order,
+  salesOrder,
+  order: legacyOrder,
   selectedProductsInOrder,
   onBack,
   onSelectionToggle,
   onSelectAll,
   onDeselectAll,
   onCreateManufacturingOrder,
+  onCreatePickingTask,
+  onViewPickingTask,
+  onViewDeliveryNotes,
   onPrepareDelivery,
   onStatusUpdate,
 }: OrderDetailsPageProps) {
-  // Check if document type is valid (BL or BC)
-  if (order.type !== 'BL' && order.type !== 'BC') {
+  // Support both new SalesOrder and legacy Order
+  const isSalesOrder = !!salesOrder;
+  const isLegacyOrder = !!legacyOrder;
+
+  // For backward compatibility: if legacy Order with type BC, treat as SalesOrder
+  // This allows gradual migration
+  const effectiveSalesOrder: SalesOrder | null = useMemo(() => {
+    if (salesOrder) return salesOrder;
+    if (legacyOrder && legacyOrder.type === 'BC') {
+      // Convert legacy Order to SalesOrder format
+      const statusMap: Record<string, SalesOrderStatus> = {
+        Brouillon: 'DRAFT',
+        Confirmé: 'CONFIRMED',
+        'Partiellement livré': 'PARTIALLY_SHIPPED',
+        Livré: 'SHIPPED',
+        Clos: 'INVOICED',
+      };
+      return {
+        salesOrderId: legacyOrder.id,
+        number: legacyOrder.number,
+        client: legacyOrder.client,
+        deliveryDate: legacyOrder.deliveryDate,
+        items: legacyOrder.items,
+        createdAt: legacyOrder.createdAt,
+        totalHT: legacyOrder.totalHT,
+        status: statusMap[legacyOrder.status as string] || 'DRAFT',
+        disputeStatus: legacyOrder.disputeStatus,
+      };
+    }
+    return null;
+  }, [salesOrder, legacyOrder]);
+
+  // Legacy BL support
+  const isLegacyBL = isLegacyOrder && legacyOrder.type === 'BL';
+
+  // Check if document type is valid
+  if (!effectiveSalesOrder && !isLegacyBL) {
     return (
       <div className='flex flex-col h-full min-h-0 items-center justify-center p-4'>
         <p className='text-red-600 font-semibold mb-2'>
@@ -48,25 +107,58 @@ export default function OrderDetailsPage({
     );
   }
 
-  // Calculate read-only mode based on status
-  // BL: read-only if status !== 'À préparer' && status !== 'En préparation'
-  // BC: always read-only in Atelier (for now)
-  const isReadOnly =
-    order.type === 'BC' ||
-    (order.type === 'BL' &&
-      order.status !== 'À préparer' &&
-      order.status !== 'En préparation');
+  // Get order data (SalesOrder or legacy Order)
+  const orderData = effectiveSalesOrder || legacyOrder!;
+  const orderItems = effectiveSalesOrder
+    ? effectiveSalesOrder.items
+    : legacyOrder!.items;
 
-  const allProductsOk = order.items.every((item) => {
+  // Calculate read-only mode
+  // For SalesOrder: read-only if INVOICED or CANCELLED
+  // For legacy BL: read-only if status !== 'À préparer' && status !== 'En préparation'
+  const isReadOnly = effectiveSalesOrder
+    ? effectiveSalesOrder.status === 'INVOICED' ||
+      effectiveSalesOrder.status === 'CANCELLED'
+    : isLegacyBL &&
+      legacyOrder!.status !== 'À préparer' &&
+      legacyOrder!.status !== 'En préparation';
+
+  // Calculate stock availability
+  const allProductsOk = orderItems.every((item) => {
     const product = products.find((p) => p.id === item.productId);
     return product && product.stock >= item.quantity;
   });
 
-  const statusColors = getStatusBadgeColor(order.status);
-  const statusLabel = getStatusLabel(order.status);
+  // Get status colors and label
+  const statusColors = getStatusBadgeColor(
+    effectiveSalesOrder
+      ? effectiveSalesOrder.status
+      : (legacyOrder!.status as any)
+  );
+  const statusLabel = effectiveSalesOrder
+    ? getSalesOrderStatusLabelFr(effectiveSalesOrder.status)
+    : getStatusLabel(legacyOrder!.status as any);
+
+  // Calculate remaining quantities for SalesOrder
+  const remainingQuantities = useMemo(() => {
+    if (effectiveSalesOrder) {
+      return getRemainingQuantities(effectiveSalesOrder.salesOrderId);
+    }
+    return null;
+  }, [effectiveSalesOrder]);
+
+  // Get active picking tasks for SalesOrder
+  const activePickingTasks = useMemo(() => {
+    if (effectiveSalesOrder) {
+      return getPickingTasksBySalesOrder(effectiveSalesOrder.salesOrderId).filter(
+        (pt) => pt.status === 'PENDING' || pt.status === 'IN_PROGRESS'
+      );
+    }
+    return [];
+  }, [effectiveSalesOrder]);
 
   // Get products with deficit (for manufacturing order selection)
-  const productsWithDeficit = order.items.filter((item) => {
+  const productsWithDeficit = orderItems.filter((item) => {
     const product = products.find((p) => p.id === item.productId);
     return product && product.stock < item.quantity;
   });
@@ -79,10 +171,31 @@ export default function OrderDetailsPage({
     });
   };
 
+  // Handle BC actions
+  const handleCreatePickingTask = () => {
+    if (effectiveSalesOrder && onCreatePickingTask) {
+      onCreatePickingTask(effectiveSalesOrder.salesOrderId);
+    }
+  };
+
+  const handleViewPickingTask = () => {
+    if (effectiveSalesOrder && activePickingTasks.length > 0 && onViewPickingTask) {
+      // If multiple active BP, take the first one (could be improved with selector)
+      onViewPickingTask(activePickingTasks[0].pickingTaskId);
+    }
+  };
+
+  const handleViewDeliveryNotes = () => {
+    if (effectiveSalesOrder && onViewDeliveryNotes) {
+      onViewDeliveryNotes(effectiveSalesOrder.salesOrderId);
+    }
+  };
+
+  // Legacy BL: Prepare delivery
   const handlePrepareDelivery = () => {
-    if (allProductsOk && onPrepareDelivery && onStatusUpdate) {
+    if (isLegacyBL && allProductsOk && onPrepareDelivery && onStatusUpdate) {
       // Update status to 'En préparation'
-      onStatusUpdate(order.id, 'En préparation');
+      onStatusUpdate(legacyOrder!.id, 'En préparation' as DeliveryNoteStatus);
       // Navigate to delivery preparation page
       onPrepareDelivery();
     }
@@ -93,7 +206,7 @@ export default function OrderDetailsPage({
       // Calculate quantities for selected products
       const quantities: Record<string, number> = {};
       selectedProductsInOrder.forEach((productId) => {
-        const item = order.items.find((i) => i.productId === productId);
+        const item = orderItems.find((i) => i.productId === productId);
         const product = products.find((p) => p.id === productId);
         if (item && product) {
           const deficit = Math.max(0, item.quantity - product.stock);
@@ -122,7 +235,7 @@ export default function OrderDetailsPage({
           <div className='flex-1'>
             <div className='flex items-center gap-2 mb-0.5'>
               <h2 className='font-semibold text-[15px] leading-tight'>
-                {order.client}
+                {orderData.client}
               </h2>
               {/* Status Badge */}
               <span
@@ -132,15 +245,43 @@ export default function OrderDetailsPage({
               </span>
             </div>
             <p className='text-[10px] text-gray-600 leading-tight'>
-              {order.number} • {order.type}
+              {orderData.number} • {effectiveSalesOrder ? 'BC' : legacyOrder!.type}
             </p>
           </div>
           <img
-            src={clientLogos[order.client] || ''}
+            src={clientLogos[orderData.client] || ''}
             alt=''
             className='w-8 h-8 rounded object-cover flex-shrink-0'
           />
         </div>
+
+        {/* Remaining Quantities Display (for SalesOrder with partial deliveries) */}
+        {effectiveSalesOrder &&
+          remainingQuantities &&
+          remainingQuantities.some((rq) => rq.delivered > 0) && (
+            <div className='mb-1.5 p-1.5 bg-blue-50 border border-blue-200 rounded-lg'>
+              <p className='text-[10px] font-semibold text-blue-700 mb-1'>
+                Reliquats
+              </p>
+              <div className='space-y-0.5'>
+                {remainingQuantities
+                  .filter((rq) => rq.delivered > 0)
+                  .map((rq) => {
+                    const product = products.find((p) => p.id === rq.productId);
+                    if (!product) return null;
+                    return (
+                      <p
+                        key={rq.productId}
+                        className='text-[9px] text-blue-600 leading-tight'
+                      >
+                        {product.name}: {rq.ordered} u commandé, {rq.delivered} u
+                        livré, {rq.remaining} u restant
+                      </p>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
 
         {/* Global Status Banner - Compact */}
         <div
@@ -174,7 +315,15 @@ export default function OrderDetailsPage({
         <div className='space-y-4 pb-4'>
           {/* En stock section */}
           {(() => {
-            const inStockItems = order.items.filter((item) => {
+            // For SalesOrder, use remaining quantities if available, otherwise use items
+            const itemsToDisplay = effectiveSalesOrder && remainingQuantities
+              ? remainingQuantities.map((rq) => ({
+                  productId: rq.productId,
+                  quantity: rq.remaining > 0 ? rq.remaining : rq.ordered,
+                }))
+              : orderItems;
+
+            const inStockItems = itemsToDisplay.filter((item) => {
               const product = products.find((p) => p.id === item.productId);
               return product && product.stock >= item.quantity;
             });
@@ -211,7 +360,15 @@ export default function OrderDetailsPage({
 
           {/* Hors stock section */}
           {(() => {
-            const outOfStockItems = order.items.filter((item) => {
+            // For SalesOrder, use remaining quantities if available
+            const itemsToDisplay = effectiveSalesOrder && remainingQuantities
+              ? remainingQuantities.map((rq) => ({
+                  productId: rq.productId,
+                  quantity: rq.remaining > 0 ? rq.remaining : rq.ordered,
+                }))
+              : orderItems;
+
+            const outOfStockItems = itemsToDisplay.filter((item) => {
               const product = products.find((p) => p.id === item.productId);
               return product && product.stock < item.quantity;
             });
@@ -275,45 +432,132 @@ export default function OrderDetailsPage({
 
       {/* Fixed Footer with Actions */}
       <div className='flex-shrink-0 pt-3 pb-4 bg-white border-t border-gray-200 space-y-2'>
-        {/* Prepare delivery button - only visible if BL with status 'À préparer' */}
-        {order.type === 'BL' && order.status === 'À préparer' && !isReadOnly && (
-          <button
-            disabled={!allProductsOk}
-            onClick={handlePrepareDelivery}
-            className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
-              allProductsOk
-                ? 'bg-[#12895a] text-white hover:bg-[#107a4d] cursor-pointer'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            <Package className='w-4 h-4' />
-            Préparer la livraison
-          </button>
+        {/* ===== SalesOrder (BC) Actions ===== */}
+        {effectiveSalesOrder && (
+          <>
+            {/* BC CONFIRMED: Create BP and prepare */}
+            {effectiveSalesOrder.status === 'CONFIRMED' && !isReadOnly && (
+              <button
+                onClick={handleCreatePickingTask}
+                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
+              >
+                <Package className='w-4 h-4' />
+                Créer un BP et préparer
+              </button>
+            )}
+
+            {/* BC IN_PREPARATION: View active preparation */}
+            {effectiveSalesOrder.status === 'IN_PREPARATION' &&
+              activePickingTasks.length > 0 &&
+              !isReadOnly && (
+                <button
+                  onClick={handleViewPickingTask}
+                  className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
+                >
+                  <Play className='w-4 h-4' />
+                  {activePickingTasks.length === 1
+                    ? 'Voir la préparation en cours'
+                    : `Voir la préparation (${activePickingTasks.length} BP actifs)`}
+                </button>
+              )}
+
+            {/* BC PARTIALLY_SHIPPED: Prepare remaining quantities */}
+            {effectiveSalesOrder.status === 'PARTIALLY_SHIPPED' &&
+              !isReadOnly && (
+                <button
+                  onClick={handleCreatePickingTask}
+                  className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
+                >
+                  <Package className='w-4 h-4' />
+                  Préparer le reliquat
+                </button>
+              )}
+
+            {/* BC SHIPPED: View delivery notes */}
+            {effectiveSalesOrder.status === 'SHIPPED' && (
+              <button
+                onClick={handleViewDeliveryNotes}
+                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-blue-600 text-white hover:bg-blue-700'
+              >
+                <Eye className='w-4 h-4' />
+                Voir les BL
+              </button>
+            )}
+
+            {/* BC INVOICED/CANCELLED: Read-only message */}
+            {isReadOnly && (
+              <p className='text-center text-[12px] text-gray-500 py-2'>
+                Aucune action disponible à ce statut
+              </p>
+            )}
+
+            {/* Create manufacturing order button - for BC with stock issues */}
+            {!isReadOnly &&
+              effectiveSalesOrder.status !== 'SHIPPED' &&
+              effectiveSalesOrder.status !== 'INVOICED' &&
+              effectiveSalesOrder.status !== 'CANCELLED' && (
+                <button
+                  disabled={selectedProductsInOrder.length === 0}
+                  onClick={handleCreateManufacturingOrder}
+                  className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
+                    selectedProductsInOrder.length > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <Plus className='w-4 h-4' />
+                  Créer un ordre de fabrication
+                  {selectedProductsInOrder.length > 0 &&
+                    ` (${selectedProductsInOrder.length})`}
+                </button>
+              )}
+          </>
         )}
 
-        {/* Create production order button - hidden in read-only mode */}
-        {!isReadOnly && (
-          <button
-            disabled={selectedProductsInOrder.length === 0}
-            onClick={handleCreateManufacturingOrder}
-            className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
-              selectedProductsInOrder.length > 0
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            <Plus className='w-4 h-4' />
-            Créer un ordre de fabrication
-            {selectedProductsInOrder.length > 0 &&
-              ` (${selectedProductsInOrder.length})`}
-          </button>
-        )}
+        {/* ===== Legacy BL Actions ===== */}
+        {isLegacyBL && (
+          <>
+            {/* Prepare delivery button - only visible if BL with status 'À préparer' */}
+            {legacyOrder!.status === 'À préparer' && !isReadOnly && (
+              <button
+                disabled={!allProductsOk}
+                onClick={handlePrepareDelivery}
+                className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
+                  allProductsOk
+                    ? 'bg-[#12895a] text-white hover:bg-[#107a4d] cursor-pointer'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <Package className='w-4 h-4' />
+                Préparer la livraison
+              </button>
+            )}
 
-        {/* Info message for read-only statuses */}
-        {isReadOnly && order.type === 'BL' && order.status !== 'À préparer' && (
-          <p className='text-center text-[12px] text-gray-500 py-2'>
-            Aucune action disponible à ce statut
-          </p>
+            {/* Create production order button - hidden in read-only mode */}
+            {!isReadOnly && (
+              <button
+                disabled={selectedProductsInOrder.length === 0}
+                onClick={handleCreateManufacturingOrder}
+                className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
+                  selectedProductsInOrder.length > 0
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <Plus className='w-4 h-4' />
+                Créer un ordre de fabrication
+                {selectedProductsInOrder.length > 0 &&
+                  ` (${selectedProductsInOrder.length})`}
+              </button>
+            )}
+
+            {/* Info message for read-only statuses */}
+            {isReadOnly && legacyOrder!.status !== 'À préparer' && (
+              <p className='text-center text-[12px] text-gray-500 py-2'>
+                Aucune action disponible à ce statut
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>

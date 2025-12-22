@@ -31,9 +31,18 @@ import {
   orders,
   clientLogos,
   updateOrderStatus,
+  createPickingTaskFromSalesOrder,
+  getPickingTask,
+  getSalesOrder,
+  getDeliveryNote,
   type Product,
   type Order,
   type DeliveryNoteStatus,
+  type SalesOrderStatus,
+  type PickingTaskStatus,
+  type SalesOrder,
+  type PickingTask,
+  type DeliveryNote,
 } from '../data/database';
 import Dashboard from './Dashboard';
 import ProductCard from './components/ProductCard';
@@ -105,6 +114,10 @@ export default function App() {
   const [selectedProductsInOrder, setSelectedProductsInOrder] = useState<
     string[]
   >([]);
+  const [selectedPickingTask, setSelectedPickingTask] =
+    useState<PickingTask | null>(null);
+  const [selectedSalesOrder, setSelectedSalesOrder] =
+    useState<SalesOrder | null>(null);
   const [currentDate, setCurrentDate] = useState(addDays(now, 7));
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [showPeriodSelector, setShowPeriodSelector] = useState(false);
@@ -193,14 +206,29 @@ export default function App() {
   // Function to update order status
   const handleStatusUpdate = (
     orderId: string,
-    newStatus: DeliveryNoteStatus
+    newStatus: DeliveryNoteStatus | SalesOrderStatus | PickingTaskStatus
   ) => {
-    updateOrderStatus(orderId, newStatus);
-    // Update selectedOrder if it's the same order
+    // For legacy Order, use updateOrderStatus
+    // For new types (SalesOrder, PickingTask), status is managed by backend functions
     if (selectedOrder && selectedOrder.id === orderId) {
+      updateOrderStatus(orderId, newStatus as any);
       setSelectedOrder({
         ...selectedOrder,
-        status: newStatus,
+        status: newStatus as any,
+      });
+    }
+    // Update selectedSalesOrder if it's the same
+    if (selectedSalesOrder && selectedSalesOrder.salesOrderId === orderId) {
+      setSelectedSalesOrder({
+        ...selectedSalesOrder,
+        status: newStatus as SalesOrderStatus,
+      });
+    }
+    // Update selectedPickingTask if it's the same
+    if (selectedPickingTask && selectedPickingTask.pickingTaskId === orderId) {
+      setSelectedPickingTask({
+        ...selectedPickingTask,
+        status: newStatus as PickingTaskStatus,
       });
     }
     // Force re-render by updating orders list
@@ -213,24 +241,30 @@ export default function App() {
     setShowOrderDetailsPage(false);
     setShowDeliveryPreparation(false);
     setShowDeliveryNoteDetails(false);
+    setSelectedPickingTask(null);
+    setSelectedSalesOrder(null);
 
-    // Navigation logic based on order type and status
+    // Try to find corresponding SalesOrder if BC
     if (order.type === 'BC') {
-      // BC: Navigate to BC detail page (to be implemented later)
-      // For now, show order details page
+      const salesOrder = getSalesOrder(order.id);
+      if (salesOrder) {
+        setSelectedSalesOrder(salesOrder);
+      }
       setShowOrderDetailsPage(true);
     } else if (order.type === 'BL') {
-      // BL: Navigate based on status
-      const status = order.status as DeliveryNoteStatus;
-      if (status === 'À préparer') {
+      // BL: Navigate based on status (legacy French statuses)
+      const status = order.status as string;
+      if (status === 'À préparer' || status === 'DRAFT') {
         setShowOrderDetailsPage(true);
-      } else if (status === 'En préparation') {
+      } else if (status === 'En préparation' || status === 'IN_PROGRESS') {
         setShowDeliveryPreparation(true);
       } else if (
         status === 'Prêt à expédier' ||
+        status === 'SHIPPED' ||
         status === 'Expédié' ||
         status === 'Livré' ||
         status === 'Facturé' ||
+        status === 'INVOICED' ||
         status === 'Annulé'
       ) {
         setShowDeliveryNoteDetails(true);
@@ -238,6 +272,46 @@ export default function App() {
         // Default fallback
         setShowOrderDetailsPage(true);
       }
+    }
+  };
+
+  // Handle creating BP from BC
+  const handleCreatePickingTask = (salesOrderId: string) => {
+    try {
+      const pickingTask = createPickingTaskFromSalesOrder(salesOrderId);
+      setSelectedPickingTask(pickingTask);
+      setShowOrderDetailsPage(false);
+      setShowDeliveryPreparation(true);
+      setCurrentView('delivery-preparation');
+    } catch (error) {
+      console.error('Error creating picking task:', error);
+      // Could show error toast here
+    }
+  };
+
+  // Handle viewing active picking task
+  const handleViewPickingTask = (pickingTaskId: string) => {
+    const pickingTask = getPickingTask(pickingTaskId);
+    if (pickingTask) {
+      setSelectedPickingTask(pickingTask);
+      setShowOrderDetailsPage(false);
+      setShowDeliveryPreparation(true);
+      setCurrentView('delivery-preparation');
+    }
+  };
+
+  // Handle viewing sales order (BC parent)
+  const handleViewSalesOrder = (salesOrderId: string) => {
+    const salesOrder = getSalesOrder(salesOrderId);
+    if (salesOrder) {
+      setSelectedSalesOrder(salesOrder);
+      // Find corresponding Order for backward compatibility
+      const order = orders.find((o) => o.id === salesOrderId);
+      if (order) {
+        setSelectedOrder(order);
+      }
+      setShowDeliveryPreparation(false);
+      setShowOrderDetailsPage(true);
     }
   };
 
@@ -276,27 +350,60 @@ export default function App() {
         <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
           <div className='absolute bg-white top-[87px] left-0 w-[393px] h-[691px] flex flex-col overflow-hidden'>
             <DeliveryPreparationPage
-              order={selectedOrder}
+              pickingTask={selectedPickingTask || undefined}
+              order={
+                selectedPickingTask ? undefined : selectedOrder || undefined
+              }
               onBack={() => {
                 setShowDeliveryPreparation(false);
+                setSelectedPickingTask(null);
                 setCurrentView('logistique-commandes');
-                setShowOrderDetailsPage(true);
+                if (selectedSalesOrder || selectedOrder) {
+                  setShowOrderDetailsPage(true);
+                }
               }}
-              onValidationComplete={() => {
+              onValidationComplete={(deliveryNoteId) => {
                 // After validation, navigate to delivery note details page
+                // The BL was created automatically by completePickingTask()
+                if (deliveryNoteId) {
+                  // Get the created DeliveryNote and convert it to Order for display
+                  const deliveryNote = getDeliveryNote(deliveryNoteId);
+                  if (deliveryNote) {
+                    // Convert DeliveryNote to Order format for DeliveryNoteDetailsPage
+                    const orderFromDeliveryNote: Order = {
+                      id: deliveryNote.deliveryNoteId,
+                      number: deliveryNote.number,
+                      type: 'BL',
+                      client: deliveryNote.client,
+                      deliveryDate: deliveryNote.deliveryDate,
+                      items: deliveryNote.lines.map((line) => ({
+                        productId: line.productId,
+                        quantity: line.quantity,
+                      })),
+                      createdAt: deliveryNote.createdAt,
+                      totalHT: 0, // Calculate if needed
+                      status: deliveryNote.status,
+                    };
+                    setSelectedOrder(orderFromDeliveryNote);
+                  }
+                }
                 setShowDeliveryPreparation(false);
+                setSelectedPickingTask(null);
                 setShowDeliveryNoteDetails(true);
                 setCurrentView('logistique-commandes');
               }}
               onStatusUpdate={handleStatusUpdate}
               onRedirectToStockCheck={() => {
                 setShowDeliveryPreparation(false);
+                setSelectedPickingTask(null);
                 setShowOrderDetailsPage(true);
               }}
               onRedirectToDetails={() => {
                 setShowDeliveryPreparation(false);
+                setSelectedPickingTask(null);
                 setShowDeliveryNoteDetails(true);
               }}
+              onViewSalesOrder={handleViewSalesOrder}
             />
           </div>
         </div>
@@ -305,19 +412,27 @@ export default function App() {
         <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
           <div
             className={`absolute bg-white top-[87px] left-0 w-[393px] h-[691px] px-4 pt-4 ${
-              mode === 'clients' && showOrderDetailsPage && selectedOrder
+              mode === 'clients' &&
+              showOrderDetailsPage &&
+              (selectedSalesOrder || selectedOrder)
                 ? 'flex flex-col overflow-hidden'
                 : 'overflow-y-auto pb-7'
             }`}
           >
             {/* Order Details Page - Full page view */}
-            {mode === 'clients' && showOrderDetailsPage && selectedOrder ? (
+            {mode === 'clients' &&
+            showOrderDetailsPage &&
+            (selectedSalesOrder || selectedOrder) ? (
               <OrderDetailsPage
-                order={selectedOrder}
+                salesOrder={selectedSalesOrder || undefined}
+                order={
+                  selectedSalesOrder ? undefined : selectedOrder || undefined
+                }
                 selectedProductsInOrder={selectedProductsInOrder}
                 onBack={() => {
                   setShowOrderDetailsPage(false);
                   setSelectedOrder(null);
+                  setSelectedSalesOrder(null);
                   setSelectedProductsInOrder([]);
                 }}
                 onSelectionToggle={(productId) => {
@@ -328,8 +443,11 @@ export default function App() {
                   );
                 }}
                 onSelectAll={() => {
+                  const items = selectedSalesOrder
+                    ? selectedSalesOrder.items
+                    : selectedOrder!.items;
                   setSelectedProductsInOrder(
-                    selectedOrder.items.map((item) => item.productId)
+                    items.map((item) => item.productId)
                   );
                 }}
                 onDeselectAll={() => {
@@ -340,6 +458,8 @@ export default function App() {
                   setShowOrderDetailsPage(false);
                   setShowManufacturingOrder(true);
                 }}
+                onCreatePickingTask={handleCreatePickingTask}
+                onViewPickingTask={handleViewPickingTask}
                 onPrepareDelivery={() => {
                   setShowOrderDetailsPage(false);
                   setShowDeliveryPreparation(true);
@@ -871,13 +991,19 @@ export default function App() {
           {/* Main Content - Plus de header fixe, on gagne de l'espace */}
           <div className='absolute bg-white top-[87px] left-0 w-[393px] h-[691px] overflow-y-auto px-4 pt-4 pb-7'>
             {/* Order Details Page - Full page view */}
-            {mode === 'clients' && showOrderDetailsPage && selectedOrder ? (
+            {mode === 'clients' &&
+            showOrderDetailsPage &&
+            (selectedSalesOrder || selectedOrder) ? (
               <OrderDetailsPage
-                order={selectedOrder}
+                salesOrder={selectedSalesOrder || undefined}
+                order={
+                  selectedSalesOrder ? undefined : selectedOrder || undefined
+                }
                 selectedProductsInOrder={selectedProductsInOrder}
                 onBack={() => {
                   setShowOrderDetailsPage(false);
                   setSelectedOrder(null);
+                  setSelectedSalesOrder(null);
                   setSelectedProductsInOrder([]);
                 }}
                 onSelectionToggle={(productId) => {
@@ -888,8 +1014,11 @@ export default function App() {
                   );
                 }}
                 onSelectAll={() => {
+                  const items = selectedSalesOrder
+                    ? selectedSalesOrder.items
+                    : selectedOrder!.items;
                   setSelectedProductsInOrder(
-                    selectedOrder.items.map((item) => item.productId)
+                    items.map((item) => item.productId)
                   );
                 }}
                 onDeselectAll={() => {
@@ -900,6 +1029,8 @@ export default function App() {
                   setShowOrderDetailsPage(false);
                   setShowManufacturingOrder(true);
                 }}
+                onCreatePickingTask={handleCreatePickingTask}
+                onViewPickingTask={handleViewPickingTask}
                 onPrepareDelivery={() => {
                   setShowOrderDetailsPage(false);
                   setShowDeliveryPreparation(true);

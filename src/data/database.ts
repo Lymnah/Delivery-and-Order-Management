@@ -12,16 +12,41 @@ import imgTzatziki from '../assets/f4b9c2546699f16007b2437a15c440b7f521c550.png'
 // Types
 export type DocumentType = 'BC' | 'BL';
 
+// ===== NEW STATUS ENUMS (English values) =====
 // Sales order statuses (BC - Bon de Commande)
 export type SalesOrderStatus =
+  | 'DRAFT'
+  | 'CONFIRMED'
+  | 'IN_PREPARATION'
+  | 'PARTIALLY_SHIPPED'
+  | 'SHIPPED'
+  | 'INVOICED'
+  | 'CANCELLED';
+
+// Picking task statuses (BP - Bon de Préparation)
+export type PickingTaskStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+// Delivery note statuses (BL - Bon de Livraison)
+export type DeliveryNoteStatus =
+  | 'DRAFT'
+  | 'SHIPPED'
+  | 'SIGNED' // Optional V1
+  | 'INVOICED';
+
+// ===== LEGACY STATUS TYPES (for backward compatibility during migration) =====
+// Old French statuses - will be deprecated
+export type LegacySalesOrderStatus =
   | 'Brouillon'
   | 'Confirmé'
   | 'Partiellement livré'
   | 'Livré'
   | 'Clos';
 
-// Delivery note statuses (BL - Bon de Livraison)
-export type DeliveryNoteStatus =
+export type LegacyDeliveryNoteStatus =
   | 'À préparer'
   | 'En préparation'
   | 'Prêt à expédier'
@@ -48,6 +73,66 @@ export interface OrderItem {
   quantity: number;
 }
 
+// ===== NEW DOCUMENT INTERFACES =====
+// Sales Order (BC - Bon de Commande)
+export interface SalesOrder {
+  salesOrderId: string;
+  number: string;
+  client: string;
+  deliveryDate: Date;
+  items: OrderItem[]; // Theoretical lines
+  createdAt: Date;
+  totalHT: number;
+  status: SalesOrderStatus;
+  disputeStatus?: DisputeStatus;
+}
+
+// Picking Task Line (ligne de picking)
+export interface PickingTaskLine {
+  productId: string;
+  quantity: number; // Quantity to pick (may be partial)
+}
+
+// Picking Task (BP - Bon de Préparation)
+export interface PickingTask {
+  pickingTaskId: string;
+  salesOrderId: string; // Parent BC
+  status: PickingTaskStatus;
+  lines: PickingTaskLine[]; // Picking lines
+  scannedLots: ScannedLot[]; // Lot traceability
+  deliveryNoteId?: string; // Generated BL (1 BP -> 1 BL)
+  createdAt: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+}
+
+// Delivery Note Line (snapshot figé)
+export interface DeliveryNoteLine {
+  productId: string;
+  quantity: number; // Actual quantity delivered
+}
+
+// Delivery Note (BL - Bon de Livraison)
+export interface DeliveryNote {
+  deliveryNoteId: string;
+  pickingTaskId: string; // Parent BP
+  number: string;
+  client: string;
+  deliveryDate: Date;
+  status: DeliveryNoteStatus;
+  lines: DeliveryNoteLine[]; // Frozen snapshot
+  scannedLots: ScannedLot[]; // Copy from BP
+  createdAt: Date;
+  shippedAt?: Date;
+  signedAt?: Date;
+  invoicedAt?: Date;
+}
+
+// ===== LEGACY ORDER INTERFACE (deprecated, kept for compatibility) =====
+/**
+ * @deprecated Use SalesOrder, PickingTask, or DeliveryNote instead
+ * This interface is kept for backward compatibility during migration
+ */
 export interface Order {
   id: string;
   number: string;
@@ -57,7 +142,11 @@ export interface Order {
   items: OrderItem[];
   createdAt: Date;
   totalHT: number;
-  status: SalesOrderStatus | DeliveryNoteStatus; // Status depends on order type (required)
+  status:
+    | SalesOrderStatus
+    | DeliveryNoteStatus
+    | LegacySalesOrderStatus
+    | LegacyDeliveryNoteStatus; // Status depends on order type (required)
   disputeStatus?: DisputeStatus; // Optional dispute status
 }
 
@@ -418,6 +507,17 @@ export const clientLogos: Record<string, string> = {
   Leclerc: imgLeclerc,
 };
 
+// ===== NEW DATA STORES =====
+// Sales Orders (BC)
+export const salesOrders: SalesOrder[] = [];
+
+// Picking Tasks (BP)
+export const pickingTasks: PickingTask[] = [];
+
+// Delivery Notes (BL)
+export const deliveryNotes: DeliveryNote[] = [];
+
+// ===== LEGACY DATA STORES (for backward compatibility) =====
 // Delivery preparation mock data
 // In a real app, this would be stored in a database
 export const deliveryPreparations: Map<string, DeliveryPreparation> = new Map();
@@ -427,11 +527,11 @@ export const getDeliveryPreparation = (
   orderId: string
 ): DeliveryPreparation => {
   if (!deliveryPreparations.has(orderId)) {
-    // Initialize with "À préparer" status for new orders
+    // Initialize with "DRAFT" status for new orders (legacy compatibility)
     const order = orders.find((o) => o.id === orderId);
     deliveryPreparations.set(orderId, {
       orderId,
-      status: order?.type === 'BL' ? 'À préparer' : 'À préparer',
+      status: 'DRAFT', // Using new enum value
       scannedLots: [],
     });
   }
@@ -457,22 +557,26 @@ export const resetProductLots = (productId: string): void => {
       deliveryPreparations.set(orderId, {
         ...prep,
         scannedLots: filteredLots,
-        // Reset status to "À préparer" if no lots remain
+        // Reset status to "DRAFT" if no lots remain (legacy compatibility)
         status:
           filteredLots.length === 0
-            ? 'À préparer'
-            : prep.status === 'Prêt à expédier'
-            ? 'En préparation'
+            ? 'DRAFT'
+            : prep.status === 'SHIPPED'
+            ? 'DRAFT' // Using new enum value
             : prep.status,
       });
     }
   });
 };
 
-// Helper function to update order status
+// Helper function to update order status (legacy compatibility)
 export const updateOrderStatus = (
   orderId: string,
-  newStatus: SalesOrderStatus | DeliveryNoteStatus
+  newStatus:
+    | SalesOrderStatus
+    | DeliveryNoteStatus
+    | LegacySalesOrderStatus
+    | LegacyDeliveryNoteStatus
 ): void => {
   const orderIndex = orders.findIndex((o) => o.id === orderId);
   if (orderIndex !== -1) {
@@ -482,3 +586,479 @@ export const updateOrderStatus = (
     };
   }
 };
+
+// ===== NEW BACKEND FUNCTIONS =====
+
+// ===== SalesOrder (BC) Functions =====
+export const confirmSalesOrder = (salesOrderId: string): void => {
+  const salesOrder = salesOrders.find((so) => so.salesOrderId === salesOrderId);
+  if (salesOrder && salesOrder.status === 'DRAFT') {
+    salesOrder.status = 'CONFIRMED';
+    // TODO: Soft allocation optionnel V1
+  }
+};
+
+export const getSalesOrder = (salesOrderId: string): SalesOrder | undefined => {
+  return salesOrders.find((so) => so.salesOrderId === salesOrderId);
+};
+
+export const getSalesOrdersForAtelier = (): SalesOrder[] => {
+  // Filter out DRAFT, return CONFIRMED, IN_PREPARATION, PARTIALLY_SHIPPED
+  return salesOrders.filter(
+    (so) =>
+      so.status === 'CONFIRMED' ||
+      so.status === 'IN_PREPARATION' ||
+      so.status === 'PARTIALLY_SHIPPED'
+  );
+};
+
+export const updateSalesOrderStatus = (
+  salesOrderId: string,
+  newStatus: SalesOrderStatus
+): void => {
+  const salesOrder = salesOrders.find((so) => so.salesOrderId === salesOrderId);
+  if (salesOrder) {
+    salesOrder.status = newStatus;
+  }
+};
+
+// ===== PickingTask (BP) Functions =====
+export const createPickingTaskFromSalesOrder = (
+  salesOrderId: string
+): PickingTask => {
+  const salesOrder = getSalesOrder(salesOrderId);
+  if (!salesOrder) {
+    throw new Error(`SalesOrder ${salesOrderId} not found`);
+  }
+
+  if (
+    salesOrder.status !== 'CONFIRMED' &&
+    salesOrder.status !== 'PARTIALLY_SHIPPED'
+  ) {
+    throw new Error(
+      `Cannot create picking task for SalesOrder with status ${salesOrder.status}`
+    );
+  }
+
+  // Calculate remaining quantities
+  const remainingQuantities = getRemainingQuantities(salesOrderId);
+
+  // Create picking task
+  const pickingTask: PickingTask = {
+    pickingTaskId: `BP-${Date.now()}`,
+    salesOrderId,
+    status: 'PENDING',
+    lines: remainingQuantities.map((item) => ({
+      productId: item.productId,
+      quantity: item.remaining,
+    })),
+    scannedLots: [],
+    createdAt: new Date(),
+  };
+
+  pickingTasks.push(pickingTask);
+
+  // Update SalesOrder status to IN_PREPARATION
+  updateSalesOrderStatus(salesOrderId, 'IN_PREPARATION');
+
+  return pickingTask;
+};
+
+export const startPickingTask = (pickingTaskId: string): void => {
+  const pickingTask = pickingTasks.find(
+    (pt) => pt.pickingTaskId === pickingTaskId
+  );
+  if (pickingTask && pickingTask.status === 'PENDING') {
+    pickingTask.status = 'IN_PROGRESS';
+    pickingTask.startedAt = new Date();
+  }
+};
+
+export const scanLot = (
+  pickingTaskId: string,
+  productId: string,
+  lotNumber: string,
+  qty: number
+): void => {
+  const pickingTask = pickingTasks.find(
+    (pt) => pt.pickingTaskId === pickingTaskId
+  );
+  if (!pickingTask) {
+    throw new Error(`PickingTask ${pickingTaskId} not found`);
+  }
+
+  if (pickingTask.status === 'PENDING') {
+    startPickingTask(pickingTaskId);
+  }
+
+  // Add lot to picking task
+  const newLot: ScannedLot = {
+    productId,
+    lotNumber,
+    quantity: qty,
+    scannedAt: new Date(),
+  };
+
+  pickingTask.scannedLots.push(newLot);
+};
+
+export const completePickingTask = (pickingTaskId: string): void => {
+  const pickingTask = pickingTasks.find(
+    (pt) => pt.pickingTaskId === pickingTaskId
+  );
+  if (!pickingTask) {
+    throw new Error(`PickingTask ${pickingTaskId} not found`);
+  }
+
+  if (pickingTask.status !== 'IN_PROGRESS') {
+    throw new Error(
+      `Cannot complete picking task with status ${pickingTask.status}`
+    );
+  }
+
+  pickingTask.status = 'COMPLETED';
+  pickingTask.completedAt = new Date();
+
+  // Create DeliveryNote from PickingTask
+  const deliveryNote = createDeliveryNoteFromPickingTask(pickingTaskId);
+  pickingTask.deliveryNoteId = deliveryNote.deliveryNoteId;
+
+  // Update SalesOrder status (SHIPPED or PARTIALLY_SHIPPED)
+  const remaining = getRemainingQuantities(pickingTask.salesOrderId);
+  const hasRemaining = remaining.some((r) => r.remaining > 0);
+
+  if (hasRemaining) {
+    updateSalesOrderStatus(pickingTask.salesOrderId, 'PARTIALLY_SHIPPED');
+  } else {
+    updateSalesOrderStatus(pickingTask.salesOrderId, 'SHIPPED');
+  }
+};
+
+export const getPickingTask = (
+  pickingTaskId: string
+): PickingTask | undefined => {
+  return pickingTasks.find((pt) => pt.pickingTaskId === pickingTaskId);
+};
+
+export const getPickingTasksBySalesOrder = (
+  salesOrderId: string
+): PickingTask[] => {
+  return pickingTasks.filter((pt) => pt.salesOrderId === salesOrderId);
+};
+
+// ===== DeliveryNote (BL) Functions =====
+export const createDeliveryNoteFromPickingTask = (
+  pickingTaskId: string
+): DeliveryNote => {
+  const pickingTask = getPickingTask(pickingTaskId);
+  if (!pickingTask) {
+    throw new Error(`PickingTask ${pickingTaskId} not found`);
+  }
+
+  const salesOrder = getSalesOrder(pickingTask.salesOrderId);
+  if (!salesOrder) {
+    throw new Error(`SalesOrder ${pickingTask.salesOrderId} not found`);
+  }
+
+  // Calculate actual quantities from scanned lots
+  const actualQuantities = new Map<string, number>();
+  pickingTask.scannedLots.forEach((lot) => {
+    const current = actualQuantities.get(lot.productId) || 0;
+    actualQuantities.set(lot.productId, current + lot.quantity);
+  });
+
+  // Create delivery note with frozen snapshot
+  const deliveryNote: DeliveryNote = {
+    deliveryNoteId: `BL-${Date.now()}`,
+    pickingTaskId,
+    number: `BL-${Date.now()}`,
+    client: salesOrder.client,
+    deliveryDate: salesOrder.deliveryDate,
+    status: 'DRAFT',
+    lines: Array.from(actualQuantities.entries()).map(
+      ([productId, quantity]) => ({
+        productId,
+        quantity,
+      })
+    ),
+    scannedLots: [...pickingTask.scannedLots], // Copy lots
+    createdAt: new Date(),
+  };
+
+  deliveryNotes.push(deliveryNote);
+  return deliveryNote;
+};
+
+export const shipDeliveryNote = (deliveryNoteId: string): void => {
+  const deliveryNote = deliveryNotes.find(
+    (dn) => dn.deliveryNoteId === deliveryNoteId
+  );
+  if (deliveryNote && deliveryNote.status === 'DRAFT') {
+    deliveryNote.status = 'SHIPPED';
+    deliveryNote.shippedAt = new Date();
+    // TODO: Decrement physical stock (inventory movement)
+  }
+};
+
+export const invoiceDeliveryNote = (deliveryNoteId: string): void => {
+  const deliveryNote = deliveryNotes.find(
+    (dn) => dn.deliveryNoteId === deliveryNoteId
+  );
+  if (deliveryNote && deliveryNote.status === 'SHIPPED') {
+    deliveryNote.status = 'INVOICED';
+    deliveryNote.invoicedAt = new Date();
+
+    // Check if all delivery notes for the parent sales order are invoiced
+    const pickingTask = getPickingTask(deliveryNote.pickingTaskId);
+    if (pickingTask) {
+      const allPickingTasks = getPickingTasksBySalesOrder(
+        pickingTask.salesOrderId
+      );
+      const allDeliveryNotes = allPickingTasks
+        .map((pt) => pt.deliveryNoteId)
+        .filter((id): id is string => !!id)
+        .map((id) => deliveryNotes.find((dn) => dn.deliveryNoteId === id))
+        .filter((dn): dn is DeliveryNote => !!dn);
+
+      const allInvoiced = allDeliveryNotes.every(
+        (dn) => dn.status === 'INVOICED'
+      );
+
+      if (allInvoiced) {
+        updateSalesOrderStatus(pickingTask.salesOrderId, 'INVOICED');
+      }
+    }
+  }
+};
+
+export const getDeliveryNote = (
+  deliveryNoteId: string
+): DeliveryNote | undefined => {
+  return deliveryNotes.find((dn) => dn.deliveryNoteId === deliveryNoteId);
+};
+
+// ===== Remaining Quantities Calculation =====
+export interface RemainingQuantity {
+  productId: string;
+  ordered: number;
+  delivered: number;
+  remaining: number;
+}
+
+export const getRemainingQuantities = (
+  salesOrderId: string
+): RemainingQuantity[] => {
+  const salesOrder = getSalesOrder(salesOrderId);
+  if (!salesOrder) {
+    return [];
+  }
+
+  // Get all picking tasks for this sales order
+  const allPickingTasks = getPickingTasksBySalesOrder(salesOrderId);
+
+  // Get all completed picking tasks (which have delivery notes)
+  const completedPickingTasks = allPickingTasks.filter(
+    (pt) => pt.status === 'COMPLETED' && pt.deliveryNoteId
+  );
+
+  // Calculate delivered quantities from all delivery notes
+  const deliveredQuantities = new Map<string, number>();
+  completedPickingTasks.forEach((pt) => {
+    const deliveryNote = getDeliveryNote(pt.deliveryNoteId!);
+    if (deliveryNote) {
+      deliveryNote.lines.forEach((line) => {
+        const current = deliveredQuantities.get(line.productId) || 0;
+        deliveredQuantities.set(line.productId, current + line.quantity);
+      });
+    }
+  });
+
+  // Calculate remaining quantities
+  return salesOrder.items.map((item) => {
+    const delivered = deliveredQuantities.get(item.productId) || 0;
+    return {
+      productId: item.productId,
+      ordered: item.quantity,
+      delivered,
+      remaining: Math.max(0, item.quantity - delivered),
+    };
+  });
+};
+
+export const calculateSalesOrderStatus = (
+  salesOrderId: string
+): SalesOrderStatus => {
+  const salesOrder = getSalesOrder(salesOrderId);
+  if (!salesOrder) {
+    throw new Error(`SalesOrder ${salesOrderId} not found`);
+  }
+
+  const remaining = getRemainingQuantities(salesOrderId);
+  const hasRemaining = remaining.some((r) => r.remaining > 0);
+  const hasDelivered = remaining.some((r) => r.delivered > 0);
+  const allPickingTasks = getPickingTasksBySalesOrder(salesOrderId);
+  const hasActivePickingTasks = allPickingTasks.some(
+    (pt) => pt.status === 'PENDING' || pt.status === 'IN_PROGRESS'
+  );
+
+  if (hasActivePickingTasks) {
+    return 'IN_PREPARATION';
+  } else if (hasDelivered && hasRemaining) {
+    return 'PARTIALLY_SHIPPED';
+  } else if (hasDelivered && !hasRemaining) {
+    return 'SHIPPED';
+  } else {
+    return salesOrder.status === 'DRAFT' ? 'DRAFT' : 'CONFIRMED';
+  }
+};
+
+// ===== Migration Function =====
+/**
+ * Migrates legacy Order objects to new structure (SalesOrder, PickingTask, DeliveryNote)
+ * This is a one-time migration function for backward compatibility
+ */
+export const migrateOrdersToNewStructure = (): void => {
+  orders.forEach((order) => {
+    if (order.type === 'BC') {
+      // Convert BC to SalesOrder
+      const statusMap: Record<string, SalesOrderStatus> = {
+        Brouillon: 'DRAFT',
+        Confirmé: 'CONFIRMED',
+        'Partiellement livré': 'PARTIALLY_SHIPPED',
+        Livré: 'SHIPPED',
+        Clos: 'INVOICED',
+      };
+
+      const salesOrder: SalesOrder = {
+        salesOrderId: order.id,
+        number: order.number,
+        client: order.client,
+        deliveryDate: order.deliveryDate,
+        items: order.items,
+        createdAt: order.createdAt,
+        totalHT: order.totalHT,
+        status: statusMap[order.status as string] || 'DRAFT',
+        disputeStatus: order.disputeStatus,
+      };
+
+      // Only add if not already exists
+      if (!salesOrders.find((so) => so.salesOrderId === order.id)) {
+        salesOrders.push(salesOrder);
+      }
+    } else if (order.type === 'BL') {
+      // For BL, we need to create a SalesOrder first (if not exists), then a PickingTask, then DeliveryNote
+      // This is a simplified migration - in real scenario, BL should have a parent BC
+      const statusMap: Record<string, DeliveryNoteStatus> = {
+        'À préparer': 'DRAFT',
+        'En préparation': 'DRAFT',
+        'Prêt à expédier': 'DRAFT',
+        Expédié: 'SHIPPED',
+        Livré: 'SHIPPED',
+        Facturé: 'INVOICED',
+        Annulé: 'DRAFT', // Cancelled BLs stay as DRAFT
+      };
+
+      // Create a temporary SalesOrder for this BL (in real scenario, BL should reference existing BC)
+      const tempSalesOrderId = `SO-${order.id}`;
+      if (!salesOrders.find((so) => so.salesOrderId === tempSalesOrderId)) {
+        const tempSalesOrder: SalesOrder = {
+          salesOrderId: tempSalesOrderId,
+          number: order.number.replace('BL-', 'BC-'),
+          client: order.client,
+          deliveryDate: order.deliveryDate,
+          items: order.items,
+          createdAt: order.createdAt,
+          totalHT: order.totalHT,
+          status: 'CONFIRMED',
+        };
+        salesOrders.push(tempSalesOrder);
+      }
+
+      // Create PickingTask if status is 'À préparer' or 'En préparation'
+      const blStatus = order.status as string;
+      if (blStatus === 'À préparer' || blStatus === 'En préparation') {
+        const pickingTask: PickingTask = {
+          pickingTaskId: `PT-${order.id}`,
+          salesOrderId: tempSalesOrderId,
+          status: blStatus === 'À préparer' ? 'PENDING' : 'IN_PROGRESS',
+          lines: order.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
+          scannedLots: [],
+          createdAt: order.createdAt,
+        };
+        if (blStatus === 'En préparation') {
+          pickingTask.startedAt = order.createdAt;
+        }
+        if (
+          !pickingTasks.find(
+            (pt) => pt.pickingTaskId === pickingTask.pickingTaskId
+          )
+        ) {
+          pickingTasks.push(pickingTask);
+        }
+      } else {
+        // For completed BLs, create a completed PickingTask and DeliveryNote
+        const pickingTask: PickingTask = {
+          pickingTaskId: `PT-${order.id}`,
+          salesOrderId: tempSalesOrderId,
+          status: 'COMPLETED',
+          lines: order.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
+          scannedLots: [],
+          createdAt: order.createdAt,
+          completedAt: order.createdAt,
+          deliveryNoteId: `DN-${order.id}`,
+        };
+        if (
+          !pickingTasks.find(
+            (pt) => pt.pickingTaskId === pickingTask.pickingTaskId
+          )
+        ) {
+          pickingTasks.push(pickingTask);
+        }
+
+        const deliveryNote: DeliveryNote = {
+          deliveryNoteId: `DN-${order.id}`,
+          pickingTaskId: pickingTask.pickingTaskId,
+          number: order.number,
+          client: order.client,
+          deliveryDate: order.deliveryDate,
+          status: statusMap[blStatus] || 'DRAFT',
+          lines: order.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          })),
+          scannedLots: [],
+          createdAt: order.createdAt,
+        };
+        if (blStatus === 'Expédié' || blStatus === 'Livré') {
+          deliveryNote.shippedAt = order.createdAt;
+        }
+        if (blStatus === 'Facturé') {
+          deliveryNote.invoicedAt = order.createdAt;
+        }
+        if (
+          !deliveryNotes.find(
+            (dn) => dn.deliveryNoteId === deliveryNote.deliveryNoteId
+          )
+        ) {
+          deliveryNotes.push(deliveryNote);
+        }
+      }
+    }
+  });
+};
+
+// Run migration on module load (for backward compatibility)
+// Note: In production, this should be run once and then disabled
+if (
+  salesOrders.length === 0 &&
+  pickingTasks.length === 0 &&
+  deliveryNotes.length === 0
+) {
+  migrateOrdersToNewStructure();
+}
