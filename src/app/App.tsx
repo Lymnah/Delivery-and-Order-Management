@@ -49,6 +49,7 @@ import DocumentPickerModal from './components/modals/DocumentPickerModal';
 import DocumentsModal from './components/modals/DocumentsModal';
 import CustomDatePickerModal from './components/modals/CustomDatePickerModal';
 import OrderCard from './components/orders/OrderCard';
+import OrdersListInline from './components/logistics/OrdersListInline';
 import { useCurrentDate } from './hooks/useCurrentDate';
 import { useOrders } from './hooks/useOrders';
 import { useProducts } from './hooks/useProducts';
@@ -1055,91 +1056,11 @@ export default function App() {
             {mode === 'clients' && !showOrderDetailsPage && (
               <>
                 {view === 'list' && (
-                  <div className='space-y-4 pb-20'>
-                    {ordersWithCurrentDates.map((order) => {
-                      const totalQty = order.items.reduce(
-                        (sum, item) => sum + item.quantity,
-                        0
-                      );
-                      const daysUntil = getDaysUntil(order.deliveryDate, now);
-
-                      // Color code for date
-                      let dateColor = 'text-gray-600';
-                      let dateBgColor = 'bg-gray-100';
-                      if (daysUntil < 0) {
-                        dateColor = 'text-red-600';
-                        dateBgColor = 'bg-red-50';
-                      } else if (daysUntil < 7) {
-                        dateColor = 'text-orange-600';
-                        dateBgColor = 'bg-orange-50';
-                      }
-
-                      return (
-                        <div
-                          key={order.id}
-                          onClick={() => openOrderDetails(order)}
-                          className={`border rounded-lg p-4 relative cursor-pointer transition-all ${
-                            order.type === 'BC'
-                              ? 'border-blue-300 bg-blue-50/40 hover:bg-blue-50'
-                              : 'border-orange-300 bg-orange-50/40 hover:bg-orange-50'
-                          }`}
-                        >
-                          {/* Badge BC/BL */}
-                          <span
-                            className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              order.type === 'BC'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-orange-100 text-orange-700'
-                            }`}
-                          >
-                            {order.type}
-                          </span>
-
-                          <div className='flex items-start gap-3'>
-                            {/* Customer Logo */}
-                            <img
-                              src={clientLogos[order.client] || ''}
-                              alt=''
-                              className='w-12 h-12 rounded object-cover flex-shrink-0'
-                            />
-
-                            {/* Order Information */}
-                            <div className='flex-1 min-w-0 space-y-1.5'>
-                              {/* Line 1: Customer name */}
-                              <p className='font-semibold text-[16px] text-gray-900'>
-                                {order.client}
-                              </p>
-
-                              {/* Line 2: Delivery deadline */}
-                              <div className='flex items-center gap-1.5'>
-                                <span
-                                  className={`${dateColor} font-semibold text-[13px] px-2 py-0.5 rounded ${dateBgColor}`}
-                                >
-                                  {format(order.deliveryDate, 'dd/MM/yy', {
-                                    locale: fr,
-                                  })}
-                                  {' · '}
-                                  {daysUntil < 0
-                                    ? `-${Math.abs(daysUntil)}j`
-                                    : daysUntil === 0
-                                    ? 'Auj.'
-                                    : `+${daysUntil}j`}
-                                </span>
-                              </div>
-
-                              {/* Line 3: Order contents */}
-                              <p className='text-[13px] text-gray-700'>
-                                {order.items.length} article
-                                {order.items.length > 1 ? 's' : ''} différent
-                                {order.items.length > 1 ? 's' : ''} • {totalQty}{' '}
-                                unités
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <OrdersListInline
+                    orders={ordersWithCurrentDates}
+                    today={now}
+                    onOrderClick={openOrderDetails}
+                  />
                 )}
 
                 {view === 'calendar' && (
@@ -1515,453 +1436,83 @@ export default function App() {
 
           {/* Manufacturing Order Modal */}
           {showManufacturingOrder && (
-            <div className='absolute inset-0 backdrop-blur-[2px] flex items-center justify-center z-50'>
-              <div className='bg-white rounded-lg p-6 w-[350px] max-h-[600px] overflow-y-auto shadow-xl'>
-                <h2 className='font-semibold text-[18px] mb-4'>
-                  Ordre de fabrication
-                </h2>
-                <p className='text-[12px] text-gray-600 mb-4'>
-                  Ajustez la quantité à fabriquer pour chaque produit :
-                </p>
-                <div className='space-y-4 mb-6'>
-                  {getAggregatedProducts().map(
-                    ({ product, deficit, quantity, orders: productOrders }) => {
-                      const currentManufacturingQty =
-                        manufacturingQuantities[product.id] ??
-                        Math.max(0, deficit);
-
-                      return (
-                        <ProductCard
-                          key={product.id}
-                          product={product}
-                          quantity={quantity}
-                          deficit={deficit}
-                          orders={productOrders}
-                          manufacturingMode={true}
-                          currentManufacturingQty={currentManufacturingQty}
-                          onManufacturingQtyChange={(productId, qty) => {
-                            setManufacturingQuantities({
-                              ...manufacturingQuantities,
-                              [productId]: qty,
-                            });
-                          }}
-                        />
-                      );
-                    }
-                  )}
-                </div>
-                <div className='flex gap-3'>
-                  <button
-                    onClick={() => {
-                      setShowManufacturingOrder(false);
-                      setManufacturingQuantities({});
-                    }}
-                    className='flex-1 bg-gray-200 text-gray-700 py-2 rounded font-semibold'
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={() => {
-                      alert('Ordre de fabrication créé !');
-                      setShowManufacturingOrder(false);
-                      setManufacturingQuantities({});
-                    }}
-                    className='flex-1 bg-[#12895a] text-white py-2 rounded font-semibold'
-                  >
-                    Confirmer
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ManufacturingOrderModal
+              aggregatedProducts={getAggregatedProducts()}
+              manufacturingQuantities={manufacturingQuantities}
+              onClose={() => {
+                setShowManufacturingOrder(false);
+                setManufacturingQuantities({});
+              }}
+              onConfirm={() => {
+                alert('Ordre de fabrication créé !');
+                setShowManufacturingOrder(false);
+                setManufacturingQuantities({});
+              }}
+              onQuantityChange={(productId, qty) => {
+                setManufacturingQuantities({
+                  ...manufacturingQuantities,
+                  [productId]: qty,
+                });
+              }}
+            />
           )}
 
           {/* Period Selector Modal */}
           {showPeriodSelector && (
-            <div className='absolute inset-0 backdrop-blur-[2px] flex items-center justify-center z-50'>
-              <div className='bg-white rounded-lg p-6 w-[350px] shadow-xl'>
-                <h2 className='font-semibold text-[18px] mb-4'>
-                  Choisir une période
-                </h2>
-                <div className='space-y-3'>
-                  <button
-                    onClick={() => {
-                      setTimeRange('week');
-                      setShowPeriodSelector(false);
-                    }}
-                    className='w-full bg-gray-100 hover:bg-gray-200 py-3 rounded-lg font-semibold text-left px-4 transition-colors'
-                  >
-                    Semaine
-                  </button>
-                  <button
-                    onClick={() => {
-                      setTimeRange('month');
-                      setShowPeriodSelector(false);
-                    }}
-                    className='w-full bg-gray-100 hover:bg-gray-200 py-3 rounded-lg font-semibold text-left px-4 transition-colors'
-                  >
-                    Mois
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowPeriodSelector(false);
-                      setShowCustomDatePicker(true);
-                      setTimeRange('custom');
-                    }}
-                    className='w-full bg-gray-100 hover:bg-gray-200 py-3 rounded-lg font-semibold text-left px-4 transition-colors'
-                  >
-                    Personnalisé
-                  </button>
-                </div>
-                <div className='mt-4'>
-                  <button
-                    onClick={() => setShowPeriodSelector(false)}
-                    className='w-full bg-gray-200 text-gray-700 py-2 rounded font-semibold'
-                  >
-                    Annuler
-                  </button>
-                </div>
-              </div>
-            </div>
+            <PeriodSelectorModal
+              onSelectWeek={() => {
+                setTimeRange('week');
+                setShowPeriodSelector(false);
+              }}
+              onSelectMonth={() => {
+                setTimeRange('month');
+                setShowPeriodSelector(false);
+              }}
+              onSelectCustom={() => {
+                setShowPeriodSelector(false);
+                setShowCustomDatePicker(true);
+                setTimeRange('custom');
+              }}
+              onClose={() => setShowPeriodSelector(false)}
+            />
           )}
 
           {/* Document Picker Modal */}
           {showDocumentPickerModal && (
-            <div className='absolute inset-0 backdrop-blur-[2px] flex items-center justify-center z-50'>
-              <div className='bg-white rounded-lg w-[350px] max-h-[600px] shadow-xl flex flex-col'>
-                <div className='p-6 pb-4'>
-                  <h2 className='font-semibold text-[18px] mb-4'>
-                    Sélectionner des documents
-                  </h2>
-
-                  <p className='text-[12px] text-gray-600 mb-4'>
-                    Sélectionnez les commandes à inclure dans la vue produits :
-                  </p>
-                </div>
-
-                <div className='space-y-3 px-6 overflow-y-auto flex-1'>
-                  {ordersWithCurrentDates.map((order) => {
-                    const totalQty = order.items.reduce(
-                      (sum, item) => sum + item.quantity,
-                      0
-                    );
-                    const daysUntil = getDaysUntil(order.deliveryDate, now);
-
-                    // Color code for date
-                    let dateColor = 'text-gray-600';
-                    let dateBgColor = 'bg-gray-100';
-                    if (daysUntil < 0) {
-                      dateColor = 'text-red-600';
-                      dateBgColor = 'bg-red-50';
-                    } else if (daysUntil < 7) {
-                      dateColor = 'text-orange-600';
-                      dateBgColor = 'bg-orange-50';
-                    }
-
-                    return (
-                      <div
-                        key={order.id}
-                        onClick={() => openOrderDetails(order)}
-                        className={`border rounded-lg p-4 relative cursor-pointer transition-all ${
-                          order.type === 'BC'
-                            ? 'border-blue-300 bg-blue-50/40 hover:bg-blue-50'
-                            : 'border-orange-300 bg-orange-50/40 hover:bg-orange-50'
-                        }`}
-                      >
-                        {/* Badge BC/BL */}
-                        <span
-                          className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-semibold ${
-                            order.type === 'BC'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-orange-100 text-orange-700'
-                          }`}
-                        >
-                          {order.type}
-                        </span>
-
-                        <div className='flex items-start gap-3'>
-                          {/* Customer Logo */}
-                          <img
-                            src={clientLogos[order.client] || ''}
-                            alt=''
-                            className='w-12 h-12 rounded object-cover flex-shrink-0'
-                          />
-
-                          {/* Order Information */}
-                          <div className='flex-1 min-w-0 space-y-1.5'>
-                            {/* Line 1: Customer name */}
-                            <p className='font-semibold text-[16px] text-gray-900'>
-                              {order.client}
-                            </p>
-
-                            {/* Line 2: Delivery deadline */}
-                            <div className='flex items-center gap-1.5'>
-                              <span
-                                className={`${dateColor} font-semibold text-[13px] px-2 py-0.5 rounded ${dateBgColor}`}
-                              >
-                                {format(order.deliveryDate, 'dd/MM/yy', {
-                                  locale: fr,
-                                })}
-                                {' · '}
-                                {daysUntil < 0
-                                  ? `-${Math.abs(daysUntil)}j`
-                                  : daysUntil === 0
-                                  ? 'Auj.'
-                                  : `+${daysUntil}j`}
-                              </span>
-                            </div>
-
-                            {/* Line 3: Order contents */}
-                            <p className='text-[13px] text-gray-700'>
-                              {order.items.length} article
-                              {order.items.length > 1 ? 's' : ''} différent
-                              {order.items.length > 1 ? 's' : ''} • {totalQty}{' '}
-                              unités
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className='flex gap-3 p-6 pt-4 border-t border-gray-200 bg-white'>
-                  <button
-                    onClick={() => {
-                      setShowDocumentPickerModal(false);
-                    }}
-                    className='flex-1 bg-gray-200 text-gray-700 py-2 rounded font-semibold'
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowDocumentPickerModal(false);
-                    }}
-                    className='flex-1 bg-[#12895a] text-white py-2 rounded font-semibold'
-                  >
-                    Sélectionner
-                  </button>
-                </div>
-              </div>
-            </div>
+            <DocumentPickerModal
+              orders={ordersWithCurrentDates}
+              today={now}
+              onOrderClick={openOrderDetails}
+              onClose={() => setShowDocumentPickerModal(false)}
+              onConfirm={() => setShowDocumentPickerModal(false)}
+            />
           )}
 
           {/* Documents Modal */}
           {showDocumentsModal && (
-            <div className='absolute inset-0 backdrop-blur-[2px] flex items-center justify-center z-50'>
-              <div className='bg-white rounded-lg p-6 w-[350px] max-h-[600px] overflow-y-auto shadow-xl'>
-                <h2 className='font-semibold text-[18px] mb-2'>
-                  {selectedProduct
-                    ? selectedProduct.name
-                    : 'Tous les documents'}
-                </h2>
-
-                {/* Total quantity - only show if a specific product is selected */}
-                {selectedProduct && (
-                  <div className='bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4'>
-                    <p className='text-[14px] font-semibold text-gray-900'>
-                      Total à livrer :{' '}
-                      {selectedProductOrders.reduce((sum, order) => {
-                        const item = order.items.find(
-                          (i) => i.productId === selectedProduct.id
-                        );
-                        return sum + (item?.quantity || 0);
-                      }, 0)}{' '}
-                      unité
-                      {selectedProductOrders.reduce((sum, order) => {
-                        const item = order.items.find(
-                          (i) => i.productId === selectedProduct.id
-                        );
-                        return sum + (item?.quantity || 0);
-                      }, 0) > 1
-                        ? 's'
-                        : ''}
-                    </p>
-                  </div>
-                )}
-
-                <p className='text-[12px] text-gray-600 mb-4'>
-                  Commandes concernées :
-                </p>
-
-                <div className='space-y-3 mb-6'>
-                  {selectedProductOrders.map((order) => {
-                    const productItem = selectedProduct
-                      ? order.items.find(
-                          (item) => item.productId === selectedProduct.id
-                        )
-                      : null;
-                    const daysUntil = getDaysUntil(order.deliveryDate, now);
-
-                    // Color code for date
-                    let dateColor = 'text-gray-600';
-                    let dateBgColor = 'bg-gray-100';
-                    if (daysUntil < 0) {
-                      dateColor = 'text-red-600';
-                      dateBgColor = 'bg-red-50';
-                    } else if (daysUntil < 7) {
-                      dateColor = 'text-orange-600';
-                      dateBgColor = 'bg-orange-50';
-                    }
-
-                    return (
-                      <div
-                        key={order.id}
-                        className='border border-gray-300 rounded-lg p-4 relative'
-                      >
-                        {/* Badge BC/BL */}
-                        <span
-                          className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-semibold ${
-                            order.type === 'BC'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-orange-100 text-orange-700'
-                          }`}
-                        >
-                          {order.type}
-                        </span>
-
-                        <div className='flex items-start gap-3'>
-                          {/* Customer Logo */}
-                          <img
-                            src={clientLogos[order.client] || ''}
-                            alt=''
-                            className='w-12 h-12 rounded object-cover flex-shrink-0'
-                          />
-
-                          {/* Order Information */}
-                          <div className='flex-1 min-w-0 space-y-1.5'>
-                            {/* Line 1: Customer name */}
-                            <p className='font-semibold text-[16px] text-gray-900'>
-                              {order.client}
-                            </p>
-
-                            {/* Line 2: Delivery deadline */}
-                            <div className='flex items-center gap-1.5'>
-                              <span
-                                className={`${dateColor} font-semibold text-[13px] px-2 py-0.5 rounded ${dateBgColor}`}
-                              >
-                                {format(order.deliveryDate, 'dd/MM/yy', {
-                                  locale: fr,
-                                })}
-                                {' · '}
-                                {daysUntil < 0
-                                  ? `-${Math.abs(daysUntil)}j`
-                                  : daysUntil === 0
-                                  ? 'Auj.'
-                                  : `+${daysUntil}j`}
-                              </span>
-                            </div>
-
-                            {/* Line 3: Quantity info */}
-                            {selectedProduct ? (
-                              <p className='text-[13px] text-gray-700'>
-                                N° {order.number} • {productItem?.quantity || 0}{' '}
-                                unité
-                                {(productItem?.quantity || 0) > 1 ? 's' : ''}
-                              </p>
-                            ) : (
-                              <div className='text-[13px] text-gray-700'>
-                                <p className='mb-1'>N° {order.number}</p>
-                                {order.items.map((item) => {
-                                  const product = products.find(
-                                    (p) => p.id === item.productId
-                                  );
-                                  return (
-                                    <p
-                                      key={item.productId}
-                                      className='text-[12px]'
-                                    >
-                                      • {product?.name}: {item.quantity} unité
-                                      {item.quantity > 1 ? 's' : ''}
-                                    </p>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className='flex gap-3'>
-                  <button
-                    onClick={() => setShowDocumentsModal(false)}
-                    className='flex-1 bg-gray-200 text-gray-700 py-2 rounded font-semibold'
-                  >
-                    Fermer
-                  </button>
-                </div>
-              </div>
-            </div>
+            <DocumentsModal
+              selectedProduct={selectedProduct}
+              selectedProductOrders={selectedProductOrders}
+              today={now}
+              onClose={() => setShowDocumentsModal(false)}
+            />
           )}
 
           {/* Custom Date Picker Modal */}
           {showCustomDatePicker && (
-            <div className='absolute inset-0 backdrop-blur-[2px] flex items-center justify-center z-50'>
-              <div className='bg-white rounded-lg p-6 w-[350px] max-h-[600px] overflow-y-auto shadow-xl'>
-                <h2 className='font-semibold text-[18px] mb-4'>
-                  Sélectionnez une période personnalisée
-                </h2>
-                <LocalizationProvider
-                  dateAdapter={AdapterDayjs}
-                  adapterLocale='fr'
-                >
-                  <div className='space-y-4 mb-6'>
-                    <div>
-                      <label className='text-[12px] text-gray-600 mb-1 block'>
-                        Début :
-                      </label>
-                      <DatePicker
-                        value={customStartDate}
-                        onChange={(newValue) => setCustomStartDate(newValue)}
-                        slotProps={{
-                          textField: {
-                            fullWidth: true,
-                            size: 'small',
-                          },
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <label className='text-[12px] text-gray-600 mb-1 block'>
-                        Fin :
-                      </label>
-                      <DatePicker
-                        value={customEndDate}
-                        onChange={(newValue) => setCustomEndDate(newValue)}
-                        slotProps={{
-                          textField: {
-                            fullWidth: true,
-                            size: 'small',
-                          },
-                        }}
-                      />
-                    </div>
-                  </div>
-                </LocalizationProvider>
-                <div className='flex gap-3'>
-                  <button
-                    onClick={() => setShowCustomDatePicker(false)}
-                    className='flex-1 bg-gray-200 text-gray-700 py-2 rounded font-semibold'
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (customStartDate && customEndDate) {
-                        setCurrentDate(customStartDate.toDate());
-                        setShowCustomDatePicker(false);
-                      }
-                    }}
-                    className='flex-1 bg-[#12895a] text-white py-2 rounded font-semibold'
-                  >
-                    Confirmer
-                  </button>
-                </div>
-              </div>
-            </div>
+            <CustomDatePickerModal
+              customStartDate={customStartDate}
+              customEndDate={customEndDate}
+              onStartDateChange={setCustomStartDate}
+              onEndDateChange={setCustomEndDate}
+              onConfirm={() => {
+                if (customStartDate && customEndDate) {
+                  setCurrentDate(customStartDate.toDate());
+                  setShowCustomDatePicker(false);
+                }
+              }}
+              onClose={() => setShowCustomDatePicker(false)}
+            />
           )}
 
           {/* Sticky Button - Create Manufacturing Order */}
