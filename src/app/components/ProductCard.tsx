@@ -1,3 +1,4 @@
+import React from 'react';
 import { Package } from 'lucide-react';
 import svgPathsStock from '../../imports/svg-gt4hwy99w6';
 import type { Product, Order } from '../../data/database';
@@ -42,7 +43,8 @@ export default function ProductCard({
     manufacturingMode && maxManufacturing > 0
       ? currentManufacturingQty / maxManufacturing
       : 0;
-  const thumbPositionPercent = stockStartPercent + rangePercent * sliderProgress;
+  const thumbPositionPercent =
+    stockStartPercent + rangePercent * sliderProgress;
   const orangeBarWidth = thumbPositionPercent - stockStartPercent;
 
   const handleClick = () => {
@@ -78,9 +80,7 @@ export default function ProductCard({
                   : 'border-gray-300 bg-white'
               }`}
             >
-              {isSelected && (
-                <span className='text-white text-[10px]'>✓</span>
-              )}
+              {isSelected && <span className='text-white text-[10px]'>✓</span>}
             </div>
           )}
 
@@ -121,7 +121,8 @@ export default function ProductCard({
             <div className='flex items-center gap-2 flex-wrap'>
               <span className='text-[12px] text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md font-medium whitespace-nowrap'>
                 À livrer{' '}
-                <span className='font-semibold text-gray-900'>{quantity}</span> u
+                <span className='font-semibold text-gray-900'>{quantity}</span>{' '}
+                u
               </span>
 
               {deficit > 0 ? (
@@ -152,7 +153,11 @@ export default function ProductCard({
 
         {/* Second row: Stock Bar - Full width */}
         <div className='flex gap-4 pt-2 items-center w-full'>
-          <div className={`relative flex-1 ${manufacturingMode ? 'h-[50px]' : 'h-[43px]'}`}>
+          <div
+            className={`relative flex-1 ${
+              manufacturingMode ? 'h-[50px]' : 'h-[43px]'
+            }`}
+          >
             {/* Base slider bar */}
             <div
               className={`absolute h-[5px] left-0 w-full ${

@@ -27,6 +27,36 @@ export const getShortDateLabel = (daysUntil: number) => {
 };
 
 /**
+ * Format a relative date label for card headers (J-2, Demain, Aujourd'hui)
+ * Returns the label and color class
+ */
+export const getRelativeDateLabel = (
+  daysUntil: number
+): { label: string; color: string } => {
+  if (daysUntil < 0) {
+    return {
+      label: `J${daysUntil}`, // J-2, J-3, etc.
+      color: 'text-red-600',
+    };
+  } else if (daysUntil === 0) {
+    return {
+      label: "Aujourd'hui",
+      color: 'text-red-600',
+    };
+  } else if (daysUntil === 1) {
+    return {
+      label: 'Demain',
+      color: 'text-orange-600',
+    };
+  } else {
+    return {
+      label: `J+${daysUntil}`,
+      color: 'text-orange-600',
+    };
+  }
+};
+
+/**
  * Format a complete section date label (e.g., "Vendredi 19.12.25 (Dans 1j)")
  */
 export const getSectionDateLabel = (date: Date, daysUntil: number) => {

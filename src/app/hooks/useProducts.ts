@@ -8,7 +8,8 @@ import {
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { products } from '../../data/database';
-import type { Order } from '../../data/database';
+import type { Order, UnifiedOrder, SalesOrder, PickingTask, DeliveryNote } from '../../data/database';
+import { getUnifiedOrdersForAtelier } from '../utils/unifiedOrderHelpers';
 import { getOrdersWithCurrentDates } from '../utils/orderHelpers';
 
 export type TimeRange = 'all' | 'today' | 'week' | 'month' | 'custom' | 'documents';
@@ -35,19 +36,56 @@ export const useProducts = ({
   getDaysInRange,
 }: UseProductsParams) => {
   const aggregatedProducts = useMemo(() => {
-    let ordersToAggregate: Order[];
+    // Helper function to extract items from UnifiedOrder
+    const getItemsFromUnifiedOrder = (unifiedOrder: UnifiedOrder): Array<{ productId: string; quantity: number }> => {
+      const originalData = unifiedOrder.originalData;
+      
+      if ('items' in originalData) {
+        // SalesOrder
+        return (originalData as SalesOrder).items;
+      } else if ('lines' in originalData) {
+        // PickingTask or DeliveryNote
+        return (originalData as PickingTask | DeliveryNote).lines.map(line => ({
+          productId: line.productId,
+          quantity: line.quantity,
+        }));
+      }
+      return [];
+    };
+
+    // Helper function to convert UnifiedOrder to Order for compatibility
+    const unifiedOrderToOrder = (unifiedOrder: UnifiedOrder): Order => {
+      const items = getItemsFromUnifiedOrder(unifiedOrder);
+      return {
+        id: unifiedOrder.id,
+        number: unifiedOrder.number,
+        type: unifiedOrder.sourceType as 'BC' | 'BL',
+        client: unifiedOrder.client,
+        deliveryDate: unifiedOrder.deliveryDate,
+        items,
+        createdAt: unifiedOrder.createdAt,
+        totalHT: 0, // Not needed for aggregation
+        status: unifiedOrder.lifecycle as any,
+      };
+    };
+
+    let ordersToAggregate: Order[] = [];
 
     if (activeMode === 'period') {
-      const currentOrders = getOrdersWithCurrentDates(today);
-
-      // For commandes view, use the same filtering logic as the orders list
+      // For commandes view, use unified orders
       if (currentView === 'logistique-commandes') {
-        let filteredOrders = currentOrders;
+        const unifiedOrders = getUnifiedOrdersForAtelier();
+        let filteredUnifiedOrders = unifiedOrders;
 
         if (timeRange === 'today') {
-          filteredOrders = filteredOrders.filter((order) =>
-            isSameDay(order.deliveryDate, filterReferenceDate)
-          );
+          // Pour "Aujourd'hui", toujours utiliser la date d'aujourd'hui (today)
+          const normalizedToday = new Date(today);
+          normalizedToday.setHours(0, 0, 0, 0);
+          filteredUnifiedOrders = unifiedOrders.filter((order) => {
+            const normalizedOrderDate = new Date(order.deliveryDate);
+            normalizedOrderDate.setHours(0, 0, 0, 0);
+            return isSameDay(normalizedOrderDate, normalizedToday);
+          });
         } else if (timeRange === 'week') {
           const weekStart = startOfWeek(filterReferenceDate, {
             locale: fr,
@@ -55,30 +93,30 @@ export const useProducts = ({
           const weekEnd = endOfWeek(filterReferenceDate, {
             locale: fr,
           });
-          filteredOrders = filteredOrders.filter(
+          filteredUnifiedOrders = unifiedOrders.filter(
             (order) =>
               order.deliveryDate >= weekStart && order.deliveryDate <= weekEnd
           );
         } else if (timeRange === 'month') {
           const monthStart = startOfMonth(filterReferenceDate);
           const monthEnd = endOfMonth(filterReferenceDate);
-          filteredOrders = filteredOrders.filter(
+          filteredUnifiedOrders = unifiedOrders.filter(
             (order) =>
               order.deliveryDate >= monthStart && order.deliveryDate <= monthEnd
           );
         }
         // 'all' doesn't filter anything
 
-        ordersToAggregate = filteredOrders;
+        // Convert UnifiedOrders to Orders for aggregation
+        ordersToAggregate = filteredUnifiedOrders.map(unifiedOrderToOrder);
       } else {
         // For other views, use the original logic
+        const currentOrders = getOrdersWithCurrentDates(today);
         const days = getDaysInRange();
         ordersToAggregate = currentOrders.filter((order) =>
           days.some((day) => isSameDay(order.deliveryDate, day))
         );
       }
-    } else {
-      ordersToAggregate = [];
     }
 
     const aggregation = new Map<string, number>();

@@ -31,17 +31,17 @@ export default function QuickFilters({
   return (
     <div className='flex gap-2 mb-2 overflow-x-auto pb-2'>
       {filters.map((filter) => {
-        const isActive =
-          timeRange === filter.key &&
-          (activeMode === undefined || activeMode === 'period');
+        // Un filtre est actif si timeRange correspond
+        // Les QuickFilters sont toujours en mode 'period', donc on ne vérifie pas activeMode
+        const isActive = timeRange === filter.key;
         return (
           <button
             key={filter.key}
             onClick={() => handleFilterClick(filter.key)}
-            className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap transition-colors ${
               isActive
                 ? 'bg-[#12895a] text-white'
-                : 'bg-gray-100 text-gray-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
             {filter.label}

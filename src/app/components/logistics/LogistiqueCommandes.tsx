@@ -1,9 +1,9 @@
-import { ChevronLeft, Calendar as CalendarIcon, List as ListIcon } from 'lucide-react';
+import { ChevronLeft, Calendar as CalendarIcon, List as ListIcon, Plus } from 'lucide-react';
 import OrderDetailsPage from '../orders/OrderDetailsPage';
 import ProductsView from './ProductsView';
 import OrdersListView from './OrdersListView';
 import CalendarView from './CalendarView';
-import type { Order } from '../../../data/database';
+import type { Order, UnifiedOrder } from '../../../data/database';
 import type { TimeRange, ActiveMode } from '../../hooks/useFilters';
 
 type Mode = 'clients' | 'products';
@@ -27,14 +27,17 @@ interface LogistiqueCommandesProps {
     deficit: number;
     orders: any[];
   }>;
-  orders: Order[];
+  orders?: Order[]; // Legacy support
+  unifiedOrders?: UnifiedOrder[]; // New unified format
+  useUnifiedView?: boolean; // Flag to use unified view
   onBack: () => void;
   onModeChange: (mode: Mode) => void;
   onViewChange: (view: View) => void;
   onFilterChange: (filterKey: TimeRange) => void;
   onResetDate: () => void;
   onNavigatePeriod: (direction: 'prev' | 'next') => void;
-  onOrderClick: (order: Order) => void;
+  onOrderClick: (order: Order | UnifiedOrder) => void;
+  onUnifiedOrderAction?: (unifiedOrder: UnifiedOrder) => void; // Action button click
   onOrderDetailsBack: () => void;
   onSelectionToggle: (productId: string) => void;
   onSelectAll: () => void;
@@ -44,6 +47,7 @@ interface LogistiqueCommandesProps {
   onMonthChange: (date: Date) => void;
   onProductClick: (product: any, orders: any[]) => void;
   onDocumentsClick: (product: any, orders: any[], e: React.MouseEvent) => void;
+  onCreateManufacturingOrderFromProducts?: () => void;
   getOrdersForDate: (date: Date) => Order[];
 }
 
@@ -61,6 +65,8 @@ export default function LogistiqueCommandes({
   currentDate,
   aggregatedProducts,
   orders,
+  unifiedOrders,
+  useUnifiedView = false,
   onBack,
   onModeChange,
   onViewChange,
@@ -68,6 +74,7 @@ export default function LogistiqueCommandes({
   onResetDate,
   onNavigatePeriod,
   onOrderClick,
+  onUnifiedOrderAction,
   onOrderDetailsBack,
   onSelectionToggle,
   onSelectAll,
@@ -77,6 +84,7 @@ export default function LogistiqueCommandes({
   onMonthChange,
   onProductClick,
   onDocumentsClick,
+  onCreateManufacturingOrderFromProducts,
   getOrdersForDate,
 }: LogistiqueCommandesProps) {
   return (
@@ -137,24 +145,35 @@ export default function LogistiqueCommandes({
                   Produits
                 </button>
               </div>
-              {mode === 'clients' && (
-                <button
-                  onClick={() => onViewChange(view === 'list' ? 'calendar' : 'list')}
-                  className='flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#12895a] text-white text-[12px] font-semibold hover:bg-[#107a4d] transition-colors'
-                >
-                  {view === 'list' ? (
-                    <>
-                      <CalendarIcon className='w-4 h-4' />
-                      Calendrier
-                    </>
-                  ) : (
-                    <>
-                      <ListIcon className='w-4 h-4' />
-                      Liste
-                    </>
-                  )}
-                </button>
-              )}
+              <div className='flex items-center gap-2'>
+                {mode === 'products' && onCreateManufacturingOrderFromProducts && (
+                  <button
+                    onClick={onCreateManufacturingOrderFromProducts}
+                    className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#12895a] text-white text-[12px] font-semibold hover:bg-[#107a4d] transition-colors'
+                  >
+                    <Plus className='w-4 h-4' />
+                    OF
+                  </button>
+                )}
+                {mode === 'clients' && (
+                  <button
+                    onClick={() => onViewChange(view === 'list' ? 'calendar' : 'list')}
+                    className='flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#12895a] text-white text-[12px] font-semibold hover:bg-[#107a4d] transition-colors'
+                  >
+                    {view === 'list' ? (
+                      <>
+                        <CalendarIcon className='w-4 h-4' />
+                        Calendrier
+                      </>
+                    ) : (
+                      <>
+                        <ListIcon className='w-4 h-4' />
+                        Liste
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
             {mode === 'products' ? (
@@ -173,6 +192,8 @@ export default function LogistiqueCommandes({
             ) : view === 'list' ? (
               <OrdersListView
                 orders={orders}
+                unifiedOrders={unifiedOrders}
+                useUnifiedView={useUnifiedView || !!unifiedOrders}
                 timeRange={timeRange}
                 activeMode={activeMode}
                 filterReferenceDate={filterReferenceDate}
@@ -181,6 +202,7 @@ export default function LogistiqueCommandes({
                 onResetDate={onResetDate}
                 onNavigatePeriod={onNavigatePeriod}
                 onOrderClick={onOrderClick}
+                onUnifiedOrderAction={onUnifiedOrderAction}
               />
             ) : (
               <CalendarView

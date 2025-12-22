@@ -434,33 +434,9 @@ export default function DeliveryPreparationPage({
           <span className='text-[13px] font-semibold'>Retour</span>
         </button>
 
-        {/* Order Header */}
-        <div className='flex items-start justify-between mb-3 pb-3 border-b border-gray-200'>
-          <div className='flex-1'>
-            <h2 className='font-semibold text-[16px] leading-tight mb-1'>
-              {effectivePickingTask && parentSalesOrder
-                ? parentSalesOrder.client
-                : legacyOrder!.client}
-            </h2>
-            <p className='text-[11px] text-gray-600 leading-tight'>
-              {effectivePickingTask
-                ? `${effectivePickingTask.pickingTaskId} • BP`
-                : `${legacyOrder!.number} • ${legacyOrder!.type}`}
-            </p>
-            {effectivePickingTask && parentSalesOrder && (
-              <button
-                onClick={() => {
-                  if (onViewSalesOrder) {
-                    onViewSalesOrder(parentSalesOrder.salesOrderId);
-                  }
-                }}
-                className='mt-1 text-[10px] text-[#12895a] font-semibold hover:underline flex items-center gap-1'
-              >
-                <ArrowLeft className='w-3 h-3' />
-                Voir le BC parent ({parentSalesOrder.number})
-              </button>
-            )}
-          </div>
+        {/* Order Header - Single line layout */}
+        <div className='flex items-center gap-3 mb-3 pb-3 border-b border-gray-200'>
+          {/* Logo à gauche */}
           <img
             src={
               clientLogos[
@@ -472,32 +448,62 @@ export default function DeliveryPreparationPage({
             alt=''
             className='w-10 h-10 rounded object-cover flex-shrink-0'
           />
+          
+          {/* Infos au centre */}
+          <div className='flex-1 min-w-0'>
+            <h2 className='font-semibold text-[15px] leading-tight truncate'>
+              {effectivePickingTask && parentSalesOrder
+                ? parentSalesOrder.client
+                : legacyOrder!.client}
+            </h2>
+            <p className='text-[11px] text-gray-600 leading-tight truncate'>
+              {effectivePickingTask
+                ? `${effectivePickingTask.pickingTaskId} • BP`
+                : `${legacyOrder!.number} • ${legacyOrder!.type}`}
+            </p>
+          </div>
+          
+          {/* Bouton à droite */}
+          {effectivePickingTask && parentSalesOrder && (
+            <button
+              onClick={() => {
+                if (onViewSalesOrder) {
+                  onViewSalesOrder(parentSalesOrder.salesOrderId);
+                }
+              }}
+              className='text-[11px] text-[#12895a] font-semibold hover:underline flex items-center gap-1 whitespace-nowrap flex-shrink-0'
+            >
+              <ArrowLeft className='w-3 h-3' />
+              Voir BC parent
+            </button>
+          )}
         </div>
 
-        {/* Status Badge */}
-        <div className='mb-3'>
+        {/* Status Badge and Progress on same line */}
+        <div className='mb-3 flex items-center gap-3'>
+          {/* Status Badge */}
           <span
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[12px] font-semibold ${statusColors.bg} ${statusColors.text}`}
+            className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap flex-shrink-0 ${statusColors.bg} ${statusColors.text}`}
           >
             {statusLabel}
           </span>
-        </div>
 
-        {/* Global Progress Indicator */}
-        <div className='mb-3'>
-          <div className='flex items-center justify-between mb-1.5'>
-            <p className='text-[12px] font-semibold text-gray-700'>
-              {preparedCount} / {totalCount} produits préparés
-            </p>
-            <span className='text-[11px] text-gray-600'>
-              {Math.round(progressPercentage)}%
-            </span>
-          </div>
-          <div className='w-full bg-gray-200 rounded-full h-2.5'>
-            <div
-              className='bg-[#12895a] h-2.5 rounded-full transition-all duration-300'
-              style={{ width: `${progressPercentage}%` }}
-            />
+          {/* Global Progress Indicator - Compact */}
+          <div className='flex-1 min-w-0'>
+            <div className='flex items-center gap-2 mb-1'>
+              <span className='text-[11px] font-semibold text-gray-700 whitespace-nowrap'>
+                {preparedCount} / {totalCount} produits
+              </span>
+              <span className='text-[10px] text-gray-600 whitespace-nowrap'>
+                {Math.round(progressPercentage)}%
+              </span>
+            </div>
+            <div className='w-full bg-gray-200 rounded-full h-2'>
+              <div
+                className='bg-[#12895a] h-2 rounded-full transition-all duration-300'
+                style={{ width: `${progressPercentage}%` }}
+              />
+            </div>
           </div>
         </div>
       </div>

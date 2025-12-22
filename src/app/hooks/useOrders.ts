@@ -7,7 +7,11 @@ import {
   getOrdersForDateAtelier,
   getSortedOrdersByUrgencyAtelier,
 } from '../utils/orderHelpers';
-import type { Order } from '../../data/database';
+import {
+  getUnifiedOrdersForAtelier,
+  getSortedUnifiedOrdersByPriority,
+} from '../utils/unifiedOrderHelpers';
+import type { Order, UnifiedOrder } from '../../data/database';
 
 /**
  * Hook to manage orders with current dates
@@ -38,6 +42,17 @@ export const useOrders = (today: Date) => {
     return getSortedOrdersByUrgencyAtelier(today);
   };
 
+  // Unified order functions
+  const getUnifiedOrdersForAtelierHelper = useMemo(
+    () => getUnifiedOrdersForAtelier(),
+    [] // Recalculate when needed (could add dependencies if needed)
+  );
+
+  const getSortedUnifiedOrdersByPriorityHelper = useMemo(
+    () => getSortedUnifiedOrdersByPriority(today),
+    [today]
+  );
+
   return {
     orders: ordersWithCurrentDates,
     getOrdersForDate: getOrdersForDateHelper,
@@ -45,6 +60,9 @@ export const useOrders = (today: Date) => {
     getOrdersForAtelier: getOrdersForAtelierHelper,
     getOrdersForDateAtelier: getOrdersForDateAtelierHelper,
     getSortedOrdersAtelier,
+    // Unified order functions
+    unifiedOrders: getUnifiedOrdersForAtelierHelper,
+    getSortedUnifiedOrdersByPriority: () => getSortedUnifiedOrdersByPriorityHelper,
   };
 };
 

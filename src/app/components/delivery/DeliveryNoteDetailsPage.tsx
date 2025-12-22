@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronLeft, Package, FileText, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, Package, FileText, CheckCircle2, Printer } from 'lucide-react';
 import {
   products,
   clientLogos,
@@ -41,7 +41,12 @@ export default function DeliveryNoteDetailsPage({
   const statusColors = getStatusBadgeColor(order.status);
   const statusLabel = getStatusLabel(order.status);
   const preparation = getDeliveryPreparation(order.id);
-  const isReadOnly = order.status === 'Annulé' || order.status === 'Facturé';
+  // Read-only for INVOICED, CANCELLED, or legacy statuses
+  const isReadOnly =
+    order.status === 'INVOICED' ||
+    order.status === 'CANCELLED' ||
+    order.status === 'Annulé' ||
+    order.status === 'Facturé';
 
   // Get scanned lots summary for each product
   const getProductLotsSummary = (productId: string) => {
@@ -226,6 +231,19 @@ export default function DeliveryNoteDetailsPage({
       {!isReadOnly && (
         <div className='flex-shrink-0 pt-3 pb-4 bg-white border-t border-gray-200 space-y-2 px-4'>
           {/* Buttons by status */}
+          {(order.status === 'DRAFT' || order.status === 'À préparer') && (
+            <button
+              onClick={() => {
+                // TODO: Implement print functionality
+                window.print();
+              }}
+              className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
+            >
+              <Printer className='w-4 h-4' />
+              Imprimer le BL
+            </button>
+          )}
+
           {order.status === 'Prêt à expédier' && (
             <>
               <button
@@ -235,9 +253,15 @@ export default function DeliveryNoteDetailsPage({
                 <Package className='w-4 h-4' />
                 Marquer comme expédié
               </button>
-              <button className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'>
-                <FileText className='w-4 h-4' />
-                Voir / imprimer le BL
+              <button
+                onClick={() => {
+                  // TODO: Implement print functionality
+                  window.print();
+                }}
+                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
+              >
+                <Printer className='w-4 h-4' />
+                Imprimer le BL
               </button>
             </>
           )}
@@ -251,9 +275,15 @@ export default function DeliveryNoteDetailsPage({
                 <CheckCircle2 className='w-4 h-4' />
                 Marquer comme livré
               </button>
-              <button className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'>
-                <FileText className='w-4 h-4' />
-                Voir / imprimer le BL
+              <button
+                onClick={() => {
+                  // TODO: Implement print functionality
+                  window.print();
+                }}
+                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
+              >
+                <Printer className='w-4 h-4' />
+                Imprimer le BL
               </button>
             </>
           )}
@@ -267,9 +297,15 @@ export default function DeliveryNoteDetailsPage({
                 <FileText className='w-4 h-4' />
                 Créer la facture
               </button>
-              <button className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'>
-                <FileText className='w-4 h-4' />
-                Voir / imprimer le BL
+              <button
+                onClick={() => {
+                  // TODO: Implement print functionality
+                  window.print();
+                }}
+                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
+              >
+                <Printer className='w-4 h-4' />
+                Imprimer le BL
               </button>
             </>
           )}
@@ -285,17 +321,29 @@ export default function DeliveryNoteDetailsPage({
                 <FileText className='w-4 h-4' />
                 Voir la facture
               </button>
-              <button className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'>
-                <FileText className='w-4 h-4' />
-                Voir / imprimer le BL
+              <button
+                onClick={() => {
+                  // TODO: Implement print functionality
+                  window.print();
+                }}
+                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
+              >
+                <Printer className='w-4 h-4' />
+                Imprimer le BL
               </button>
             </>
           )}
 
           {order.status === 'Annulé' && (
-            <button className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'>
-              <FileText className='w-4 h-4' />
-              Voir le BL
+            <button
+              onClick={() => {
+                // TODO: Implement print functionality
+                window.print();
+              }}
+              className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
+            >
+              <Printer className='w-4 h-4' />
+              Imprimer le BL
             </button>
           )}
         </div>

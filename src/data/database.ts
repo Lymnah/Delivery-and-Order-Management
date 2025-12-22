@@ -1,4 +1,11 @@
-import { addDays, endOfWeek, endOfMonth } from 'date-fns';
+import {
+  addDays,
+  endOfWeek,
+  endOfMonth,
+  isSameDay,
+  startOfWeek,
+} from 'date-fns';
+import { fr } from 'date-fns/locale';
 import imgCarrefour from '../assets/82264df74cfb0ad9b8b7d222f17c9903ba0ef774.png';
 import imgAuchan from '../assets/7fb2f94785e10950b962ede3941d2b615170f658.png';
 import imgLeclerc from '../assets/f72a75971070d98086cdb19e75c4fe4c0de8edf3.png';
@@ -57,6 +64,37 @@ export type LegacyDeliveryNoteStatus =
 
 // Dispute status
 export type DisputeStatus = 'none' | 'open' | 'in_progress' | 'resolved';
+
+// ===== UNIFIED MASTER LIST TYPES =====
+// Lifecycle states for unified order view
+export type OrderLifecycle =
+  | 'DRAFT'
+  | 'TO_PREPARE'
+  | 'IN_PREPARATION'
+  | 'READY_TO_SHIP'
+  | 'SHIPPED'
+  | 'INVOICED';
+
+// Stock status for BC orders
+export type StockStatus = 'IN_STOCK' | 'PARTIAL' | 'OUT_OF_STOCK' | 'UNKNOWN';
+
+// Unified order interface for Master List display
+export interface UnifiedOrder {
+  id: string; // Unique ID for the unified view
+  client: string;
+  deliveryDate: Date;
+  itemsCount: number;
+  totalWeight?: number; // Optional weight for BL
+  lifecycle: OrderLifecycle;
+  stockStatus: StockStatus; // For BC only, UNKNOWN for BP/BL
+  progressPercentage?: number; // For BP only (0-100)
+  sourceType: 'BC' | 'BP' | 'BL';
+  sourceId: string; // salesOrderId, pickingTaskId, or deliveryNoteId
+  number: string; // Document number for display
+  createdAt: Date;
+  // Reference to original data for actions
+  originalData: SalesOrder | PickingTask | DeliveryNote;
+}
 
 export interface Product {
   id: string;
@@ -175,8 +213,9 @@ export const getToday = () => {
   return today;
 };
 
-// Date de référence calculée au chargement du module
-const INITIAL_NOW = getToday();
+// ===== INITIAL_NOW REMOVED =====
+// INITIAL_NOW was only used for the old `orders` array, which has been removed.
+// The new system uses `getToday()` directly in `initializeDemoData()`.
 
 // Products database
 export const products: Product[] = [
@@ -236,269 +275,11 @@ export const products: Product[] = [
   },
 ];
 
-// Orders database
-export const orders: Order[] = [
-  // ===== 1 COMMANDE AUJOURD'HUI =====
-  {
-    id: '1',
-    number: 'BC-2025-001',
-    type: 'BC',
-    client: 'Carrefour',
-    deliveryDate: INITIAL_NOW, // Aujourd'hui
-    createdAt: addDays(INITIAL_NOW, -5),
-    items: [
-      { productId: '1', quantity: 100 },
-      { productId: '2', quantity: 150 },
-      { productId: '3', quantity: 200 },
-    ],
-    totalHT: 1500,
-    status: 'Confirmé',
-  },
-
-  // ===== 4 AUTRES COMMANDES CETTE SEMAINE (total 5 avec celle d'aujourd'hui) =====
-  {
-    id: '2',
-    number: 'BL-2025-045',
-    type: 'BL',
-    client: 'Auchan',
-    deliveryDate: addDays(INITIAL_NOW, 1), // Demain
-    createdAt: addDays(INITIAL_NOW, -2),
-    items: [
-      { productId: '1', quantity: 80 },
-      { productId: '2', quantity: 120 },
-      { productId: '4', quantity: 1000 },
-    ],
-    totalHT: 2000,
-    status: 'À préparer',
-  },
-  {
-    id: '3',
-    number: 'BC-2025-002',
-    type: 'BC',
-    client: 'Leclerc',
-    deliveryDate: addDays(INITIAL_NOW, 2), // Dans 2 jours
-    createdAt: INITIAL_NOW,
-    items: [
-      { productId: '2', quantity: 100 },
-      { productId: '4', quantity: 70 },
-      { productId: '5', quantity: 130 },
-    ],
-    totalHT: 1800,
-    status: 'Brouillon',
-  },
-  {
-    id: '4',
-    number: 'BC-2025-003',
-    type: 'BC',
-    client: 'Auchan',
-    deliveryDate: addDays(INITIAL_NOW, 3), // Dans 3 jours
-    createdAt: addDays(INITIAL_NOW, -3),
-    items: [
-      { productId: '1', quantity: 120 },
-      { productId: '3', quantity: 160 },
-      { productId: '6', quantity: 80 },
-    ],
-    totalHT: 2200,
-    status: 'Confirmé',
-  },
-  {
-    id: '5',
-    number: 'BC-2025-004',
-    type: 'BC',
-    client: 'Carrefour',
-    deliveryDate: addDays(INITIAL_NOW, 5), // Dans 5 jours
-    createdAt: addDays(INITIAL_NOW, -1),
-    items: [
-      { productId: '2', quantity: 90 },
-      { productId: '4', quantity: 110 },
-      { productId: '5', quantity: 75 },
-    ],
-    totalHT: 1950,
-    status: 'Confirmé',
-  },
-
-  // ===== 10 AUTRES COMMANDES DANS LE MOIS (total 15 avec celles de cette semaine) =====
-  {
-    id: '6',
-    number: 'BC-2025-005',
-    type: 'BC',
-    client: 'Leclerc',
-    deliveryDate: addDays(INITIAL_NOW, 8), // Dans 8 jours
-    createdAt: addDays(INITIAL_NOW, -4),
-    items: [
-      { productId: '1', quantity: 95 },
-      { productId: '3', quantity: 140 },
-      { productId: '6', quantity: 60 },
-    ],
-    totalHT: 1750,
-    status: 'Brouillon',
-  },
-  {
-    id: '7',
-    number: 'BC-2025-006',
-    type: 'BC',
-    client: 'Auchan',
-    deliveryDate: addDays(INITIAL_NOW, 10), // Dans 10 jours
-    createdAt: addDays(INITIAL_NOW, -2),
-    items: [
-      { productId: '2', quantity: 110 },
-      { productId: '4', quantity: 85 },
-      { productId: '5', quantity: 120 },
-    ],
-    totalHT: 2100,
-    status: 'Confirmé',
-  },
-  {
-    id: '8',
-    number: 'BL-2025-046',
-    type: 'BL',
-    client: 'Carrefour',
-    deliveryDate: addDays(INITIAL_NOW, 12), // Dans 12 jours
-    createdAt: addDays(INITIAL_NOW, -6),
-    items: [
-      { productId: '1', quantity: 130 },
-      { productId: '2', quantity: 100 },
-      { productId: '3', quantity: 175 },
-    ],
-    totalHT: 2450,
-    status: 'À préparer',
-  },
-  {
-    id: '9',
-    number: 'BL-2025-047',
-    type: 'BL',
-    client: 'Leclerc',
-    deliveryDate: addDays(INITIAL_NOW, 15), // Dans 15 jours
-    createdAt: addDays(INITIAL_NOW, -3),
-    items: [
-      { productId: '3', quantity: 200 },
-      { productId: '4', quantity: 75 },
-      { productId: '6', quantity: 50 },
-    ],
-    totalHT: 1900,
-    status: 'À préparer',
-  },
-  {
-    id: '10',
-    number: 'BC-2025-007',
-    type: 'BC',
-    client: 'Carrefour',
-    deliveryDate: addDays(INITIAL_NOW, 18), // Dans 18 jours
-    createdAt: addDays(INITIAL_NOW, -1),
-    items: [
-      { productId: '1', quantity: 150 },
-      { productId: '3', quantity: 200 },
-      { productId: '4', quantity: 100 },
-    ],
-    totalHT: 2500,
-    status: 'Confirmé',
-  },
-  {
-    id: '11',
-    number: 'BL-2025-048',
-    type: 'BL',
-    client: 'Auchan',
-    deliveryDate: addDays(INITIAL_NOW, 20), // Dans 20 jours
-    createdAt: INITIAL_NOW,
-    items: [
-      { productId: '2', quantity: 120 },
-      { productId: '5', quantity: 100 },
-      { productId: '6', quantity: 80 },
-    ],
-    totalHT: 1800,
-    status: 'À préparer',
-  },
-  {
-    id: '12',
-    number: 'BC-2025-008',
-    type: 'BC',
-    client: 'Leclerc',
-    deliveryDate: addDays(INITIAL_NOW, 22), // Dans 22 jours
-    createdAt: addDays(INITIAL_NOW, -2),
-    items: [
-      { productId: '1', quantity: 110 },
-      { productId: '2', quantity: 95 },
-      { productId: '4', quantity: 85 },
-    ],
-    totalHT: 1950,
-    status: 'Brouillon',
-  },
-  {
-    id: '13',
-    number: 'BC-2025-009',
-    type: 'BC',
-    client: 'Carrefour',
-    deliveryDate: addDays(INITIAL_NOW, 25), // Dans 25 jours
-    createdAt: addDays(INITIAL_NOW, -4),
-    items: [
-      { productId: '3', quantity: 180 },
-      { productId: '5', quantity: 90 },
-      { productId: '6', quantity: 70 },
-    ],
-    totalHT: 2100,
-    status: 'Confirmé',
-  },
-  {
-    id: '14',
-    number: 'BL-2025-049',
-    type: 'BL',
-    client: 'Auchan',
-    deliveryDate: addDays(INITIAL_NOW, 27), // Dans 27 jours
-    createdAt: addDays(INITIAL_NOW, -3),
-    items: [
-      { productId: '1', quantity: 140 },
-      { productId: '2', quantity: 105 },
-      { productId: '3', quantity: 190 },
-    ],
-    totalHT: 2300,
-    status: 'À préparer',
-  },
-  {
-    id: '15',
-    number: 'BC-2025-010',
-    type: 'BC',
-    client: 'Leclerc',
-    deliveryDate: addDays(INITIAL_NOW, 29), // Dans 29 jours (fin du mois)
-    createdAt: addDays(INITIAL_NOW, -1),
-    items: [
-      { productId: '4', quantity: 100 },
-      { productId: '5', quantity: 110 },
-      { productId: '6', quantity: 75 },
-    ],
-    totalHT: 2000,
-    status: 'Brouillon',
-  },
-
-  // ===== Commandes futures (après le mois) pour avoir un échantillon complet =====
-  {
-    id: '16',
-    number: 'BC-2025-011',
-    type: 'BC',
-    client: 'Carrefour',
-    deliveryDate: new Date(2026, 1, 15), // 15 février 2026
-    createdAt: addDays(INITIAL_NOW, -2),
-    items: [
-      { productId: '1', quantity: 160 },
-      { productId: '3', quantity: 220 },
-    ],
-    totalHT: 2600,
-    status: 'Confirmé',
-  },
-  {
-    id: '17',
-    number: 'BL-2025-050',
-    type: 'BL',
-    client: 'Auchan',
-    deliveryDate: new Date(2026, 2, 10), // 10 mars 2026
-    createdAt: addDays(INITIAL_NOW, -6),
-    items: [
-      { productId: '2', quantity: 125 },
-      { productId: '5', quantity: 105 },
-    ],
-    totalHT: 1900,
-    status: 'À préparer',
-  },
-];
+// ===== OLD ORDERS SYSTEM (DEPRECATED - REMOVED) =====
+// The old `orders` array has been completely removed.
+// Use `salesOrders`, `pickingTasks`, and `deliveryNotes` instead.
+// This export is kept as an empty array for backward compatibility with components that still reference it.
+export const orders: Order[] = [];
 
 // Client logos mapping
 export const clientLogos: Record<string, string> = {
@@ -508,14 +289,690 @@ export const clientLogos: Record<string, string> = {
 };
 
 // ===== NEW DATA STORES =====
-// Sales Orders (BC)
-export const salesOrders: SalesOrder[] = [];
+// Sales Orders (BC) - Mutable for demo
+export let salesOrders: SalesOrder[] = [];
 
-// Picking Tasks (BP)
-export const pickingTasks: PickingTask[] = [];
+// Picking Tasks (BP) - Mutable for demo
+export let pickingTasks: PickingTask[] = [];
 
-// Delivery Notes (BL)
-export const deliveryNotes: DeliveryNote[] = [];
+// Delivery Notes (BL) - Mutable for demo
+export let deliveryNotes: DeliveryNote[] = [];
+
+// ===== DEMO DATA INITIALIZATION =====
+/**
+ * Initialize demo data with fixed initial conditions
+ * Called on module load to ensure consistent demo state
+ */
+function initializeDemoData() {
+  const today = getToday();
+
+  // Clear existing data
+  salesOrders = [];
+  pickingTasks = [];
+  deliveryNotes = [];
+
+  // ===== 3 BC (Sales Orders) for today =====
+
+  // BC 1: Carrefour - CONFIRMED (stock OK)
+  const bc1: SalesOrder = {
+    salesOrderId: 'BC-DEMO-001',
+    number: 'BC-2025-001',
+    client: 'Carrefour',
+    deliveryDate: today,
+    items: [
+      { productId: '1', quantity: 100 }, // Tapenade Noire (stock: 250) ✅
+      { productId: '2', quantity: 150 }, // Tapenade Verte (stock: 320) ✅
+    ],
+    createdAt: addDays(today, -5),
+    totalHT: 2500,
+    status: 'CONFIRMED',
+  };
+
+  // BC 2: Auchan - CONFIRMED (stock partiel)
+  const bc2: SalesOrder = {
+    salesOrderId: 'BC-DEMO-002',
+    number: 'BC-2025-002',
+    client: 'Auchan',
+    deliveryDate: today,
+    items: [
+      { productId: '4', quantity: 200 }, // Caviar d'Aubergine (stock: 180) ⚠️ PARTIAL
+      { productId: '3', quantity: 100 }, // Houmous Original (stock: 450) ✅
+    ],
+    createdAt: addDays(today, -3),
+    totalHT: 3000,
+    status: 'CONFIRMED',
+  };
+
+  // BC 3: Leclerc - CONFIRMED (stock OK)
+  const bc3: SalesOrder = {
+    salesOrderId: 'BC-DEMO-003',
+    number: 'BC-2025-003',
+    client: 'Leclerc',
+    deliveryDate: today,
+    items: [
+      { productId: '1', quantity: 80 }, // Tapenade Noire (stock: 250) ✅
+      { productId: '3', quantity: 120 }, // Houmous Original (stock: 450) ✅
+    ],
+    createdAt: addDays(today, -2),
+    totalHT: 2000,
+    status: 'CONFIRMED',
+  };
+
+  // Tous les BC restent en CONFIRMED pour être visibles
+  salesOrders.push(bc1, bc2, bc3);
+
+  // ===== 1 BP (Picking Task) for today =====
+  // BP créé à partir d'un BC supplémentaire (pour démo)
+  // On crée un BC4 temporaire juste pour le BP, ou on utilise un BC existant mais on le met en IN_PREPARATION
+  // Pour la démo, on va créer le BP sur BC1 mais le mettre en PENDING (pas encore démarré)
+  // Ainsi, BC1 reste visible car le BP n'est pas encore IN_PROGRESS
+  // OU mieux : créer le BP sur un BC qui n'est pas dans la liste initiale
+
+  // Option : Créer un BC4 pour le BP (mais il ne sera pas dans les 3 BC initiaux)
+  // OU : Le BP sera créé dynamiquement par l'utilisateur en cliquant sur "Lancer Prépa"
+
+  // Pour l'instant, on ne crée pas de BP au démarrage pour que les 3 BC soient tous visibles
+  // Le BP sera créé dynamiquement quand l'utilisateur clique sur "Lancer Prépa"
+
+  // ===== 1 BL (Delivery Note) for today =====
+  // Le BL sera créé à partir d'un BP complété
+  // Pour la démo, on peut créer un BL qui vient d'un BC qui n'est plus dans la liste
+
+  // ===== 1 BP (Picking Task) for today =====
+  // Pour avoir 1 BP visible, on crée un BP sur un BC qui n'est pas dans les 3 initiaux
+  // On crée un BC4 temporaire juste pour le BP
+  const bc4: SalesOrder = {
+    salesOrderId: 'BC-DEMO-004',
+    number: 'BC-2025-004',
+    client: 'Carrefour',
+    deliveryDate: today,
+    items: [
+      { productId: '1', quantity: 50 },
+      { productId: '2', quantity: 75 },
+    ],
+    createdAt: addDays(today, -4),
+    totalHT: 1250,
+    status: 'IN_PREPARATION', // En préparation car a un BP
+  };
+
+  const bp1: PickingTask = {
+    pickingTaskId: 'BP-DEMO-001',
+    salesOrderId: 'BC-DEMO-004', // Lié à BC4
+    status: 'IN_PROGRESS',
+    lines: [
+      { productId: '1', quantity: 50 },
+      { productId: '2', quantity: 75 },
+    ],
+    scannedLots: [
+      // Produit 1: 50/50 scanné (complet)
+      {
+        productId: '1',
+        lotNumber: 'LOT-TN-2025-002',
+        quantity: 50,
+        scannedAt: addDays(today, -1),
+      },
+      // Produit 2: 45/75 scanné (partiel - 60%)
+      {
+        productId: '2',
+        lotNumber: 'LOT-TV-2025-002',
+        quantity: 45,
+        scannedAt: addDays(today, -1),
+      },
+    ],
+    createdAt: addDays(today, -1),
+    startedAt: addDays(today, -1),
+  };
+
+  salesOrders.push(bc4); // BC4 sera masqué par le BP (déduplication)
+  pickingTasks.push(bp1);
+
+  // ===== 1 BL (Delivery Note) for today =====
+  // BL créé à partir d'un BP complété précédemment
+  // On crée un BC5 temporaire pour le BL
+  const bc5: SalesOrder = {
+    salesOrderId: 'BC-DEMO-005',
+    number: 'BC-2025-005',
+    client: 'Leclerc',
+    deliveryDate: today,
+    items: [
+      { productId: '3', quantity: 200 },
+      { productId: '4', quantity: 50 },
+    ],
+    createdAt: addDays(today, -6),
+    totalHT: 2500,
+    status: 'SHIPPED', // Livré car a un BL
+  };
+
+  const bp2: PickingTask = {
+    pickingTaskId: 'BP-DEMO-COMPLETED-001',
+    salesOrderId: 'BC-DEMO-005',
+    status: 'COMPLETED',
+    lines: [
+      { productId: '3', quantity: 200 },
+      { productId: '4', quantity: 50 },
+    ],
+    scannedLots: [
+      {
+        productId: '3',
+        lotNumber: 'LOT-HO-2025-002',
+        quantity: 200,
+        scannedAt: addDays(today, -2),
+      },
+      {
+        productId: '4',
+        lotNumber: 'LOT-CA-2025-002',
+        quantity: 50,
+        scannedAt: addDays(today, -2),
+      },
+    ],
+    createdAt: addDays(today, -3),
+    startedAt: addDays(today, -3),
+    completedAt: addDays(today, -2),
+    deliveryNoteId: 'BL-DEMO-001',
+  };
+
+  const bl1: DeliveryNote = {
+    deliveryNoteId: 'BL-DEMO-001',
+    pickingTaskId: 'BP-DEMO-COMPLETED-001',
+    number: 'BL-2025-001',
+    client: 'Leclerc',
+    deliveryDate: today,
+    status: 'DRAFT', // Prêt à expédier
+    lines: [
+      { productId: '3', quantity: 200 },
+      { productId: '4', quantity: 50 },
+    ],
+    scannedLots: [
+      {
+        productId: '3',
+        lotNumber: 'LOT-HO-2025-002',
+        quantity: 200,
+        scannedAt: addDays(today, -2),
+      },
+      {
+        productId: '4',
+        lotNumber: 'LOT-CA-2025-002',
+        quantity: 50,
+        scannedAt: addDays(today, -2),
+      },
+    ],
+    createdAt: addDays(today, -2),
+  };
+
+  salesOrders.push(bc5); // BC5 sera masqué par le BL (déduplication)
+  pickingTasks.push(bp2);
+  deliveryNotes.push(bl1);
+
+  // ===== Past orders (1 per day for the last 15 days) =====
+  // Create SHIPPED or INVOICED orders in the past to test "Voir précédents" functionality
+  const clients = ['Carrefour', 'Auchan', 'Leclerc'];
+  const productsForPastOrders = [
+    { productId: '1', quantity: 50 },
+    { productId: '2', quantity: 75 },
+    { productId: '3', quantity: 100 },
+  ];
+
+  for (let i = 1; i <= 15; i++) {
+    const pastDate = addDays(today, -i);
+    const client = clients[i % clients.length];
+    const items = [
+      productsForPastOrders[i % productsForPastOrders.length],
+      productsForPastOrders[(i + 1) % productsForPastOrders.length],
+    ];
+
+    // Create a BC that was shipped/invoiced in the past
+    const pastBC: SalesOrder = {
+      salesOrderId: `BC-PAST-${String(i).padStart(3, '0')}`,
+      number: `BC-2025-PAST-${String(i).padStart(3, '0')}`,
+      client: client,
+      deliveryDate: pastDate,
+      items: items,
+      createdAt: addDays(pastDate, -Math.floor(Math.random() * 5) - 1),
+      totalHT: items.reduce((sum, item) => sum + item.quantity * 10, 0),
+      status: i <= 5 ? 'SHIPPED' : 'INVOICED', // First 5 days: SHIPPED, rest: INVOICED
+    };
+
+    salesOrders.push(pastBC);
+
+    // Create corresponding BL for shipped/invoiced orders
+    const pastBL: DeliveryNote = {
+      deliveryNoteId: `BL-PAST-${String(i).padStart(3, '0')}`,
+      pickingTaskId: `BP-PAST-${String(i).padStart(3, '0')}`, // Reference to a past BP
+      number: `BL-2025-PAST-${String(i).padStart(3, '0')}`,
+      client: client,
+      deliveryDate: pastDate,
+      status: i <= 5 ? 'SHIPPED' : 'INVOICED',
+      lines: items,
+      scannedLots: items.map((item) => ({
+        productId: item.productId,
+        lotNumber: `LOT-PAST-${i}-${item.productId}`,
+        quantity: item.quantity,
+        scannedAt: addDays(pastDate, -1),
+      })),
+      createdAt: addDays(pastDate, -1),
+      shippedAt: i <= 5 ? addDays(pastDate, 0) : undefined,
+      invoicedAt: i > 5 ? addDays(pastDate, 0) : undefined,
+    };
+
+    deliveryNotes.push(pastBL);
+  }
+
+  // Résultat final dans la Master List :
+  // - BC1 (Carrefour) : CONFIRMED → visible comme BC bleu
+  // - BC2 (Auchan) : CONFIRMED → visible comme BC bleu
+  // - BC3 (Leclerc) : CONFIRMED → visible comme BC bleu
+  // - BP1 (Carrefour) : remplace BC4 → visible comme BP orange
+  // - BL1 (Leclerc) : remplace BC5/BP2 → visible comme BL vert
+  // Total : 3 BC + 1 BP + 1 BL = 5 éléments
+
+  // ===== Données de test pour les 6 prochains mois =====
+  const clients = ['Carrefour', 'Auchan', 'Leclerc'];
+
+  // Produits avec stocks OK (1, 2, 3)
+  const productsInStock = ['1', '2', '3'];
+  // Produits avec stocks faibles (4, 5, 6)
+  const productsLowStock = ['4', '5', '6'];
+
+  // Stocks disponibles par produit (pour calculer les problèmes de stock)
+  const productStocks: Record<string, number> = {
+    '1': 250, // Tapenade Noire
+    '2': 320, // Tapenade Verte
+    '3': 450, // Houmous Original
+    '4': 180, // Caviar d'Aubergine (moyen)
+    '5': 80, // Tapenade Violette (LOW)
+    '6': 60, // Tzatziki (LOW)
+  };
+
+  // Générer des commandes pour chaque mois (environ 8-12 commandes par mois)
+  for (let monthOffset = 1; monthOffset <= 6; monthOffset++) {
+    const monthDate = addDays(today, monthOffset * 30); // Approximativement chaque mois
+
+    // 8-12 commandes par mois
+    const ordersPerMonth = 8 + Math.floor(Math.random() * 5);
+
+    for (let i = 0; i < ordersPerMonth; i++) {
+      const orderDate = addDays(monthDate, Math.floor(Math.random() * 28)); // Répartir sur le mois
+      const client = clients[Math.floor(Math.random() * clients.length)];
+      const orderNumber = `BC-2025-${String(monthOffset).padStart(
+        2,
+        '0'
+      )}${String(i + 1).padStart(3, '0')}`;
+      const salesOrderId = `BC-MONTH-${monthOffset}-${i + 1}`;
+
+      // Déterminer si cette commande aura des problèmes de stock (20% des cas)
+      const hasStockIssue = Math.random() < 0.2;
+
+      // Générer 2-4 produits par commande
+      const numProducts = 2 + Math.floor(Math.random() * 3);
+      const items: Array<{ productId: string; quantity: number }> = [];
+      const usedProducts = new Set<string>();
+
+      for (let j = 0; j < numProducts; j++) {
+        let productId: string;
+        let quantity: number;
+
+        if (hasStockIssue) {
+          // Pour les commandes avec problèmes de stock, utiliser les produits en stock faible
+          const availableLowStock = productsLowStock.filter(
+            (pid) => !usedProducts.has(pid)
+          );
+
+          if (availableLowStock.length > 0) {
+            // Utiliser un produit en stock faible
+            productId =
+              availableLowStock[
+                Math.floor(Math.random() * availableLowStock.length)
+              ];
+            const stock = productStocks[productId];
+
+            // Créer une quantité qui dépasse le stock disponible pour créer un problème
+            // 60% de chance d'OUT_OF_STOCK (dépasse complètement), 40% de PARTIAL (dépasse partiellement)
+            if (Math.random() < 0.6) {
+              // OUT_OF_STOCK : quantité = stock * (1.2 à 2.0)
+              quantity = Math.floor(stock * (1.2 + Math.random() * 0.8));
+            } else {
+              // PARTIAL : quantité = stock * (0.8 à 1.1) - juste au-dessus du stock
+              quantity = Math.floor(stock * (0.8 + Math.random() * 0.3));
+            }
+          } else {
+            // Si tous les produits en stock faible sont déjà utilisés, utiliser un produit OK
+            const availableInStock = productsInStock.filter(
+              (pid) => !usedProducts.has(pid)
+            );
+            productId =
+              availableInStock[
+                Math.floor(Math.random() * availableInStock.length)
+              ];
+            quantity = 50 + Math.floor(Math.random() * 200); // Quantités normales
+          }
+        } else {
+          // Pour les commandes sans problème (80%), utiliser uniquement les produits en stock OK
+          const availableInStock = productsInStock.filter(
+            (pid) => !usedProducts.has(pid)
+          );
+
+          if (availableInStock.length > 0) {
+            productId =
+              availableInStock[
+                Math.floor(Math.random() * availableInStock.length)
+              ];
+            // Quantités raisonnables qui ne dépassent pas le stock
+            const stock = productStocks[productId];
+            quantity = Math.floor(stock * (0.1 + Math.random() * 0.4)); // 10-50% du stock
+          } else {
+            // Fallback si tous les produits OK sont utilisés
+            productId =
+              productsInStock[
+                Math.floor(Math.random() * productsInStock.length)
+              ];
+            quantity = 50 + Math.floor(Math.random() * 200);
+          }
+        }
+
+        usedProducts.add(productId);
+        items.push({
+          productId,
+          quantity,
+        });
+      }
+
+      const salesOrder: SalesOrder = {
+        salesOrderId,
+        number: orderNumber,
+        client,
+        deliveryDate: orderDate,
+        items,
+        createdAt: addDays(orderDate, -Math.floor(Math.random() * 10) - 1), // Créé 1-10 jours avant
+        totalHT: items.reduce((sum, item) => sum + item.quantity * 10, 0), // Prix approximatif
+        status: 'CONFIRMED',
+      };
+
+      salesOrders.push(salesOrder);
+
+      // Pour environ 20% des commandes, créer un BP en cours
+      if (Math.random() < 0.2) {
+        const pickingTask: PickingTask = {
+          pickingTaskId: `BP-MONTH-${monthOffset}-${i + 1}`,
+          salesOrderId,
+          status: Math.random() < 0.5 ? 'PENDING' : 'IN_PROGRESS',
+          lines: items,
+          scannedLots: [],
+          createdAt: addDays(orderDate, -Math.floor(Math.random() * 5)),
+          ...(Math.random() < 0.5
+            ? { startedAt: addDays(orderDate, -Math.floor(Math.random() * 3)) }
+            : {}),
+        };
+
+        // Ajouter quelques lots scannés si IN_PROGRESS
+        if (pickingTask.status === 'IN_PROGRESS') {
+          items.forEach((item, idx) => {
+            if (Math.random() < 0.7) {
+              // 70% des produits ont des lots scannés
+              const scannedQty = Math.floor(
+                item.quantity * (0.3 + Math.random() * 0.7)
+              ); // 30-100% scanné
+              pickingTask.scannedLots.push({
+                productId: item.productId,
+                lotNumber: `LOT-${item.productId}-${monthOffset}-${i}-${idx}`,
+                quantity: scannedQty,
+                scannedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
+              });
+            }
+          });
+        }
+
+        pickingTasks.push(pickingTask);
+        salesOrder.status = 'IN_PREPARATION';
+      }
+
+      // Pour environ 10% des commandes, créer un BL (livré)
+      if (Math.random() < 0.1) {
+        const pickingTaskId = `BP-MONTH-${monthOffset}-${i + 1}-COMPLETED`;
+        const completedPickingTask: PickingTask = {
+          pickingTaskId,
+          salesOrderId,
+          status: 'COMPLETED',
+          lines: items,
+          scannedLots: items.map((item, idx) => ({
+            productId: item.productId,
+            lotNumber: `LOT-${item.productId}-${monthOffset}-${i}-${idx}`,
+            quantity: item.quantity,
+            scannedAt: addDays(orderDate, -Math.floor(Math.random() * 5)),
+          })),
+          createdAt: addDays(orderDate, -Math.floor(Math.random() * 10)),
+          startedAt: addDays(orderDate, -Math.floor(Math.random() * 8)),
+          completedAt: addDays(orderDate, -Math.floor(Math.random() * 3)),
+          deliveryNoteId: `BL-MONTH-${monthOffset}-${i + 1}`,
+        };
+
+        const deliveryNote: DeliveryNote = {
+          deliveryNoteId: `BL-MONTH-${monthOffset}-${i + 1}`,
+          pickingTaskId,
+          number: `BL-2025-${String(monthOffset).padStart(2, '0')}${String(
+            i + 1
+          ).padStart(3, '0')}`,
+          client,
+          deliveryDate: orderDate,
+          status: Math.random() < 0.5 ? 'DRAFT' : 'SHIPPED',
+          lines: items,
+          scannedLots: completedPickingTask.scannedLots,
+          createdAt: addDays(orderDate, -Math.floor(Math.random() * 3)),
+        };
+
+        pickingTasks.push(completedPickingTask);
+        deliveryNotes.push(deliveryNote);
+        salesOrder.status =
+          deliveryNote.status === 'SHIPPED' ? 'SHIPPED' : 'PARTIALLY_SHIPPED';
+      }
+    }
+  }
+
+  // ===== Commandes spécifiques pour la période lundi 22.12.25 - jeudi 22.01.26 =====
+  // Calculer les dates de début et fin
+  const startDate = new Date(2025, 11, 22); // 22 décembre 2025 (mois 0-indexed)
+  const endDate = new Date(2026, 0, 22); // 22 janvier 2026
+
+  // Trouver le lundi de la semaine de début
+  const mondayStart = startOfWeek(startDate, { locale: fr });
+
+  // Calculer le nombre de semaines entre les deux dates
+  const weeksDiff = Math.ceil(
+    (endDate.getTime() - mondayStart.getTime()) / (1000 * 60 * 60 * 24 * 7)
+  );
+
+  // Créer au moins 3 commandes par semaine
+  let orderCounter = 1;
+  for (let weekOffset = 0; weekOffset < weeksDiff; weekOffset++) {
+    const weekStart = addDays(mondayStart, weekOffset * 7);
+    const weekEnd = addDays(weekStart, 6); // Dimanche de la semaine
+
+    // Créer 3-5 commandes par semaine
+    const ordersPerWeek = 3 + Math.floor(Math.random() * 3);
+
+    for (let i = 0; i < ordersPerWeek; i++) {
+      // Répartir les commandes sur la semaine (lundi à jeudi pour la dernière semaine)
+      const dayOffset = Math.floor(
+        Math.random() * (weekOffset === weeksDiff - 1 ? 4 : 7)
+      ); // 0-3 pour dernière semaine, 0-6 pour les autres
+      const orderDate = addDays(weekStart, dayOffset);
+
+      // Ne pas dépasser la date de fin (jeudi 22.01.26)
+      if (orderDate > endDate) continue;
+
+      const client = clients[Math.floor(Math.random() * clients.length)];
+      const orderNumber = `BC-2025-WEEK-${String(weekOffset + 1).padStart(
+        2,
+        '0'
+      )}-${String(i + 1).padStart(2, '0')}`;
+      const salesOrderId = `BC-WEEK-${weekOffset + 1}-${i + 1}`;
+
+      // Générer 2-4 produits par commande
+      const numProducts = 2 + Math.floor(Math.random() * 3);
+      const items: Array<{ productId: string; quantity: number }> = [];
+      const usedProducts = new Set<string>();
+
+      // 80% des commandes avec stock OK, 20% avec problèmes de stock
+      const hasStockIssue = Math.random() < 0.2;
+
+      for (let j = 0; j < numProducts; j++) {
+        let productId: string;
+        let quantity: number;
+
+        if (hasStockIssue) {
+          const availableLowStock = productsLowStock.filter(
+            (pid) => !usedProducts.has(pid)
+          );
+
+          if (availableLowStock.length > 0) {
+            productId =
+              availableLowStock[
+                Math.floor(Math.random() * availableLowStock.length)
+              ];
+            const stock = productStocks[productId];
+
+            if (Math.random() < 0.6) {
+              quantity = Math.floor(stock * (1.2 + Math.random() * 0.8));
+            } else {
+              quantity = Math.floor(stock * (0.8 + Math.random() * 0.3));
+            }
+          } else {
+            const availableInStock = productsInStock.filter(
+              (pid) => !usedProducts.has(pid)
+            );
+            productId =
+              availableInStock[
+                Math.floor(Math.random() * availableInStock.length)
+              ];
+            quantity = 50 + Math.floor(Math.random() * 200);
+          }
+        } else {
+          const availableInStock = productsInStock.filter(
+            (pid) => !usedProducts.has(pid)
+          );
+
+          if (availableInStock.length > 0) {
+            productId =
+              availableInStock[
+                Math.floor(Math.random() * availableInStock.length)
+              ];
+            const stock = productStocks[productId];
+            quantity = Math.floor(stock * (0.1 + Math.random() * 0.4));
+          } else {
+            productId =
+              productsInStock[
+                Math.floor(Math.random() * productsInStock.length)
+              ];
+            quantity = 50 + Math.floor(Math.random() * 200);
+          }
+        }
+
+        usedProducts.add(productId);
+        items.push({ productId, quantity });
+      }
+
+      const salesOrder: SalesOrder = {
+        salesOrderId,
+        number: orderNumber,
+        client,
+        deliveryDate: orderDate,
+        items,
+        createdAt: addDays(orderDate, -Math.floor(Math.random() * 10) - 1),
+        totalHT: items.reduce((sum, item) => sum + item.quantity * 10, 0),
+        status: 'CONFIRMED',
+      };
+
+      salesOrders.push(salesOrder);
+      orderCounter++;
+
+      // Pour environ 20% des commandes, créer un BP en cours
+      if (Math.random() < 0.2) {
+        const pickingTask: PickingTask = {
+          pickingTaskId: `BP-WEEK-${weekOffset + 1}-${i + 1}`,
+          salesOrderId,
+          status: Math.random() < 0.5 ? 'PENDING' : 'IN_PROGRESS',
+          lines: items,
+          scannedLots: [],
+          createdAt: addDays(orderDate, -Math.floor(Math.random() * 5)),
+          ...(Math.random() < 0.5
+            ? { startedAt: addDays(orderDate, -Math.floor(Math.random() * 3)) }
+            : {}),
+        };
+
+        if (pickingTask.status === 'IN_PROGRESS') {
+          items.forEach((item, idx) => {
+            if (Math.random() < 0.7) {
+              const scannedQty = Math.floor(
+                item.quantity * (0.3 + Math.random() * 0.7)
+              );
+              pickingTask.scannedLots.push({
+                productId: item.productId,
+                lotNumber: `LOT-${item.productId}-WEEK-${weekOffset}-${i}-${idx}`,
+                quantity: scannedQty,
+                scannedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
+              });
+            }
+          });
+        }
+
+        pickingTasks.push(pickingTask);
+        salesOrder.status = 'IN_PREPARATION';
+      }
+    }
+  }
+}
+
+/**
+ * Adjust demo data dates to always be relative to "today"
+ * This ensures that demo data is always current, even if the app stays open for multiple days
+ */
+let demoDataReferenceDate: Date | null = null;
+
+export function adjustDemoDataDates() {
+  const today = getToday();
+
+  // If this is the first time or if the date has changed, adjust all dates
+  if (!demoDataReferenceDate || !isSameDay(demoDataReferenceDate, today)) {
+    const previousReference = demoDataReferenceDate || today;
+    const dateOffset = Math.ceil(
+      (today.getTime() - previousReference.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    if (dateOffset !== 0) {
+      // Adjust all SalesOrders delivery dates
+      salesOrders.forEach((so) => {
+        const currentDate = new Date(so.deliveryDate);
+        currentDate.setDate(currentDate.getDate() + dateOffset);
+        so.deliveryDate = currentDate;
+      });
+
+      // Adjust all PickingTasks (via their parent SalesOrder dates)
+      // Note: PickingTasks use their parent SalesOrder's deliveryDate, so they're automatically adjusted
+
+      // Adjust all DeliveryNotes delivery dates
+      deliveryNotes.forEach((dn) => {
+        const currentDate = new Date(dn.deliveryDate);
+        currentDate.setDate(currentDate.getDate() + dateOffset);
+        dn.deliveryDate = currentDate;
+      });
+    }
+
+    // Update reference date
+    demoDataReferenceDate = new Date(today);
+  }
+}
+
+/**
+ * Reset demo data to initial conditions
+ * Call this function to restore the demo to its initial state
+ */
+export const resetDemoData = () => {
+  demoDataReferenceDate = null; // Reset reference date
+  initializeDemoData();
+};
+
+// Initialize demo data on module load
+initializeDemoData();
+demoDataReferenceDate = new Date(getToday()); // Set initial reference date
 
 // ===== LEGACY DATA STORES (for backward compatibility) =====
 // Delivery preparation mock data
@@ -603,6 +1060,9 @@ export const getSalesOrder = (salesOrderId: string): SalesOrder | undefined => {
 };
 
 export const getSalesOrdersForAtelier = (): SalesOrder[] => {
+  // Adjust demo data dates to always be relative to "today"
+  adjustDemoDataDates();
+
   // Filter out DRAFT, return CONFIRMED, IN_PREPARATION, PARTIALLY_SHIPPED
   return salesOrders.filter(
     (so) =>
@@ -912,153 +1372,7 @@ export const calculateSalesOrderStatus = (
   }
 };
 
-// ===== Migration Function =====
-/**
- * Migrates legacy Order objects to new structure (SalesOrder, PickingTask, DeliveryNote)
- * This is a one-time migration function for backward compatibility
- */
-export const migrateOrdersToNewStructure = (): void => {
-  orders.forEach((order) => {
-    if (order.type === 'BC') {
-      // Convert BC to SalesOrder
-      const statusMap: Record<string, SalesOrderStatus> = {
-        Brouillon: 'DRAFT',
-        Confirmé: 'CONFIRMED',
-        'Partiellement livré': 'PARTIALLY_SHIPPED',
-        Livré: 'SHIPPED',
-        Clos: 'INVOICED',
-      };
-
-      const salesOrder: SalesOrder = {
-        salesOrderId: order.id,
-        number: order.number,
-        client: order.client,
-        deliveryDate: order.deliveryDate,
-        items: order.items,
-        createdAt: order.createdAt,
-        totalHT: order.totalHT,
-        status: statusMap[order.status as string] || 'DRAFT',
-        disputeStatus: order.disputeStatus,
-      };
-
-      // Only add if not already exists
-      if (!salesOrders.find((so) => so.salesOrderId === order.id)) {
-        salesOrders.push(salesOrder);
-      }
-    } else if (order.type === 'BL') {
-      // For BL, we need to create a SalesOrder first (if not exists), then a PickingTask, then DeliveryNote
-      // This is a simplified migration - in real scenario, BL should have a parent BC
-      const statusMap: Record<string, DeliveryNoteStatus> = {
-        'À préparer': 'DRAFT',
-        'En préparation': 'DRAFT',
-        'Prêt à expédier': 'DRAFT',
-        Expédié: 'SHIPPED',
-        Livré: 'SHIPPED',
-        Facturé: 'INVOICED',
-        Annulé: 'DRAFT', // Cancelled BLs stay as DRAFT
-      };
-
-      // Create a temporary SalesOrder for this BL (in real scenario, BL should reference existing BC)
-      const tempSalesOrderId = `SO-${order.id}`;
-      if (!salesOrders.find((so) => so.salesOrderId === tempSalesOrderId)) {
-        const tempSalesOrder: SalesOrder = {
-          salesOrderId: tempSalesOrderId,
-          number: order.number.replace('BL-', 'BC-'),
-          client: order.client,
-          deliveryDate: order.deliveryDate,
-          items: order.items,
-          createdAt: order.createdAt,
-          totalHT: order.totalHT,
-          status: 'CONFIRMED',
-        };
-        salesOrders.push(tempSalesOrder);
-      }
-
-      // Create PickingTask if status is 'À préparer' or 'En préparation'
-      const blStatus = order.status as string;
-      if (blStatus === 'À préparer' || blStatus === 'En préparation') {
-        const pickingTask: PickingTask = {
-          pickingTaskId: `PT-${order.id}`,
-          salesOrderId: tempSalesOrderId,
-          status: blStatus === 'À préparer' ? 'PENDING' : 'IN_PROGRESS',
-          lines: order.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-          })),
-          scannedLots: [],
-          createdAt: order.createdAt,
-        };
-        if (blStatus === 'En préparation') {
-          pickingTask.startedAt = order.createdAt;
-        }
-        if (
-          !pickingTasks.find(
-            (pt) => pt.pickingTaskId === pickingTask.pickingTaskId
-          )
-        ) {
-          pickingTasks.push(pickingTask);
-        }
-      } else {
-        // For completed BLs, create a completed PickingTask and DeliveryNote
-        const pickingTask: PickingTask = {
-          pickingTaskId: `PT-${order.id}`,
-          salesOrderId: tempSalesOrderId,
-          status: 'COMPLETED',
-          lines: order.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-          })),
-          scannedLots: [],
-          createdAt: order.createdAt,
-          completedAt: order.createdAt,
-          deliveryNoteId: `DN-${order.id}`,
-        };
-        if (
-          !pickingTasks.find(
-            (pt) => pt.pickingTaskId === pickingTask.pickingTaskId
-          )
-        ) {
-          pickingTasks.push(pickingTask);
-        }
-
-        const deliveryNote: DeliveryNote = {
-          deliveryNoteId: `DN-${order.id}`,
-          pickingTaskId: pickingTask.pickingTaskId,
-          number: order.number,
-          client: order.client,
-          deliveryDate: order.deliveryDate,
-          status: statusMap[blStatus] || 'DRAFT',
-          lines: order.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-          })),
-          scannedLots: [],
-          createdAt: order.createdAt,
-        };
-        if (blStatus === 'Expédié' || blStatus === 'Livré') {
-          deliveryNote.shippedAt = order.createdAt;
-        }
-        if (blStatus === 'Facturé') {
-          deliveryNote.invoicedAt = order.createdAt;
-        }
-        if (
-          !deliveryNotes.find(
-            (dn) => dn.deliveryNoteId === deliveryNote.deliveryNoteId
-          )
-        ) {
-          deliveryNotes.push(deliveryNote);
-        }
-      }
-    }
-  });
-};
-
-// Run migration on module load (for backward compatibility)
-// Note: In production, this should be run once and then disabled
-if (
-  salesOrders.length === 0 &&
-  pickingTasks.length === 0 &&
-  deliveryNotes.length === 0
-) {
-  migrateOrdersToNewStructure();
-}
+// ===== MIGRATION FUNCTION REMOVED =====
+// The old migration function has been completely removed.
+// We now use only the new system: `salesOrders`, `pickingTasks`, and `deliveryNotes`.
+// Demo data is initialized via `initializeDemoData()` function.

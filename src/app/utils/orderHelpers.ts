@@ -6,8 +6,16 @@ import { getDaysUntil } from './dateHelpers';
  * Get orders with dates recalculated relative to current date
  * This fixes the issue where INITIAL_NOW in database.ts is calculated once at module load
  * The first order should always be "today", so we use it as reference to calculate the offset
+ * 
+ * NOTE: Since we've removed the old orders array, this function now returns an empty array.
+ * The new system uses salesOrders, pickingTasks, and deliveryNotes instead.
  */
 export const getOrdersWithCurrentDates = (today: Date): Order[] => {
+  // If orders array is empty (new system), return empty array
+  if (orders.length === 0) {
+    return [];
+  }
+
   // The first order (id: '1') should be delivered "today" according to database.ts
   // We calculate the offset based on this assumption
   const firstOrderDate = new Date(orders[0].deliveryDate);

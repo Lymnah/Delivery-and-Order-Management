@@ -43,6 +43,7 @@ import {
   type SalesOrder,
   type PickingTask,
   type DeliveryNote,
+  type UnifiedOrder,
 } from '../data/database';
 import Dashboard from './Dashboard';
 import ProductCard from './components/ProductCard';
@@ -62,6 +63,7 @@ import DocumentsModal from './components/modals/DocumentsModal';
 import CustomDatePickerModal from './components/modals/CustomDatePickerModal';
 import OrderCard from './components/orders/OrderCard';
 import OrdersListInline from './components/logistics/OrdersListInline';
+import OrdersListView from './components/logistics/OrdersListView';
 import { useCurrentDate } from './hooks/useCurrentDate';
 import { useOrders } from './hooks/useOrders';
 import { useProducts } from './hooks/useProducts';
@@ -89,6 +91,8 @@ export default function App() {
     getOrdersForAtelier,
     getOrdersForDateAtelier,
     getSortedOrdersAtelier,
+    unifiedOrders,
+    getSortedUnifiedOrdersByPriority,
   } = useOrders(now);
 
   const [view, setView] = useState<'list' | 'calendar'>('list');
@@ -192,15 +196,36 @@ export default function App() {
     return aggregatedProducts;
   };
 
-  const getOrderCard = (order: Order) => {
-    return (
-      <OrderCard
-        key={order.id}
-        order={order}
-        today={now}
-        onClick={openOrderDetails}
-      />
-    );
+  const getOrderCard = (order: Order | UnifiedOrder) => {
+    if ('sourceType' in order) {
+      // UnifiedOrder
+      return (
+        <OrderCard
+          key={order.id}
+          unifiedOrder={order}
+          today={now}
+          onClick={(unifiedOrder: UnifiedOrder | Order) => {
+            if ('sourceType' in unifiedOrder) {
+              handleUnifiedOrderClick(unifiedOrder);
+            }
+          }}
+        />
+      );
+    } else {
+      // Legacy Order
+      return (
+        <OrderCard
+          key={order.id}
+          order={order}
+          today={now}
+          onClick={(legacyOrder: Order | UnifiedOrder) => {
+            if (!('sourceType' in legacyOrder)) {
+              openOrderDetails(legacyOrder);
+            }
+          }}
+        />
+      );
+    }
   };
 
   // Function to update order status
@@ -295,8 +320,123 @@ export default function App() {
     if (pickingTask) {
       setSelectedPickingTask(pickingTask);
       setShowOrderDetailsPage(false);
+      setShowDeliveryNoteDetails(false);
       setShowDeliveryPreparation(true);
-      setCurrentView('delivery-preparation');
+      // Stay in logistique-commandes view, showDeliveryPreparation will handle the display
+    }
+  };
+
+  // Handle unified order action (from Master List)
+  const handleUnifiedOrderAction = (unifiedOrder: UnifiedOrder) => {
+    if (unifiedOrder.lifecycle === 'TO_PREPARE') {
+      // BC: Create BP and prepare
+      if (unifiedOrder.sourceType === 'BC') {
+        handleCreatePickingTask(unifiedOrder.sourceId);
+      }
+    } else if (unifiedOrder.lifecycle === 'IN_PREPARATION') {
+      // BP: Continue picking
+      if (unifiedOrder.sourceType === 'BP') {
+        handleViewPickingTask(unifiedOrder.sourceId);
+      }
+    } else if (unifiedOrder.lifecycle === 'READY_TO_SHIP') {
+      // BL: View delivery note details
+      if (unifiedOrder.sourceType === 'BL') {
+        const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
+        if (deliveryNote) {
+          // Convert DeliveryNote to legacy Order for compatibility
+          const convertedOrder: Order = {
+            id: deliveryNote.deliveryNoteId,
+            number: deliveryNote.number,
+            type: 'BL',
+            client: deliveryNote.client,
+            deliveryDate: deliveryNote.deliveryDate,
+            items: deliveryNote.lines.map((line) => ({
+              productId: line.productId,
+              quantity: line.quantity,
+            })),
+            createdAt: deliveryNote.createdAt,
+            totalHT: 0,
+            status: deliveryNote.status,
+          };
+          setSelectedOrder(convertedOrder);
+          setShowDeliveryNoteDetails(true);
+        }
+      }
+    } else if (unifiedOrder.lifecycle === 'SHIPPED') {
+      // BL: View delivery note details (read-only)
+      if (unifiedOrder.sourceType === 'BL') {
+        const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
+        if (deliveryNote) {
+          const convertedOrder: Order = {
+            id: deliveryNote.deliveryNoteId,
+            number: deliveryNote.number,
+            type: 'BL',
+            client: deliveryNote.client,
+            deliveryDate: deliveryNote.deliveryDate,
+            items: deliveryNote.lines.map((line) => ({
+              productId: line.productId,
+              quantity: line.quantity,
+            })),
+            createdAt: deliveryNote.createdAt,
+            totalHT: 0,
+            status: deliveryNote.status,
+          };
+          setSelectedOrder(convertedOrder);
+          setShowDeliveryNoteDetails(true);
+        }
+      }
+    }
+  };
+
+  // Handle unified order click (navigate to details)
+  const handleUnifiedOrderClick = (unifiedOrder: UnifiedOrder) => {
+    if (unifiedOrder.sourceType === 'BC') {
+      const salesOrder = getSalesOrder(unifiedOrder.sourceId);
+      if (salesOrder) {
+        setSelectedSalesOrder(salesOrder);
+        // Find corresponding Order for backward compatibility, or create one from SalesOrder
+        let order = ordersWithCurrentDates.find(
+          (o) => o.id === unifiedOrder.sourceId
+        );
+        if (!order) {
+          // Create Order from SalesOrder for backward compatibility
+          order = {
+            id: salesOrder.salesOrderId,
+            number: salesOrder.number,
+            type: 'BC',
+            client: salesOrder.client,
+            deliveryDate: salesOrder.deliveryDate,
+            items: salesOrder.items,
+            createdAt: salesOrder.createdAt,
+            totalHT: salesOrder.totalHT,
+            status: salesOrder.status,
+          };
+        }
+        setSelectedOrder(order);
+        setShowOrderDetailsPage(true);
+      }
+    } else if (unifiedOrder.sourceType === 'BP') {
+      handleViewPickingTask(unifiedOrder.sourceId);
+    } else if (unifiedOrder.sourceType === 'BL') {
+      const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
+      if (deliveryNote) {
+        const convertedOrder: Order = {
+          id: deliveryNote.deliveryNoteId,
+          number: deliveryNote.number,
+          type: 'BL',
+          client: deliveryNote.client,
+          deliveryDate: deliveryNote.deliveryDate,
+          items: deliveryNote.lines.map((line) => ({
+            productId: line.productId,
+            quantity: line.quantity,
+          })),
+          createdAt: deliveryNote.createdAt,
+          totalHT: 0,
+          status: deliveryNote.status,
+        };
+        setSelectedOrder(convertedOrder);
+        setShowDeliveryNoteDetails(true);
+      }
     }
   };
 
@@ -305,11 +445,23 @@ export default function App() {
     const salesOrder = getSalesOrder(salesOrderId);
     if (salesOrder) {
       setSelectedSalesOrder(salesOrder);
-      // Find corresponding Order for backward compatibility
-      const order = orders.find((o) => o.id === salesOrderId);
-      if (order) {
-        setSelectedOrder(order);
+      // Find corresponding Order for backward compatibility, or create one from SalesOrder
+      let order = ordersWithCurrentDates.find((o) => o.id === salesOrderId);
+      if (!order) {
+        // Create Order from SalesOrder for backward compatibility
+        order = {
+          id: salesOrder.salesOrderId,
+          number: salesOrder.number,
+          type: 'BC',
+          client: salesOrder.client,
+          deliveryDate: salesOrder.deliveryDate,
+          items: salesOrder.items,
+          createdAt: salesOrder.createdAt,
+          totalHT: salesOrder.totalHT,
+          status: salesOrder.status,
+        };
       }
+      setSelectedOrder(order);
       setShowDeliveryPreparation(false);
       setShowOrderDetailsPage(true);
     }
@@ -346,7 +498,8 @@ export default function App() {
           }}
           onNavigateToDashboard={() => setCurrentView('dashboard')}
         />
-      ) : currentView === 'delivery-preparation' && selectedOrder ? (
+      ) : currentView === 'delivery-preparation' &&
+        (selectedPickingTask || selectedOrder) ? (
         <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
           <div className='absolute bg-white top-[87px] left-0 w-[393px] h-[691px] flex flex-col overflow-hidden'>
             <DeliveryPreparationPage
@@ -468,6 +621,59 @@ export default function App() {
                 onStatusUpdate={handleStatusUpdate}
               />
             ) : mode === 'clients' &&
+              showDeliveryPreparation &&
+              (selectedPickingTask || selectedOrder) ? (
+              <DeliveryPreparationPage
+                pickingTask={selectedPickingTask || undefined}
+                order={
+                  selectedPickingTask ? undefined : selectedOrder || undefined
+                }
+                onBack={() => {
+                  setShowDeliveryPreparation(false);
+                  setSelectedPickingTask(null);
+                  setShowOrderDetailsPage(false);
+                  setSelectedOrder(null);
+                  setSelectedSalesOrder(null);
+                }}
+                onValidationComplete={(deliveryNoteId) => {
+                  if (deliveryNoteId) {
+                    const deliveryNote = getDeliveryNote(deliveryNoteId);
+                    if (deliveryNote) {
+                      const orderFromDeliveryNote: Order = {
+                        id: deliveryNote.deliveryNoteId,
+                        number: deliveryNote.number,
+                        type: 'BL',
+                        client: deliveryNote.client,
+                        deliveryDate: deliveryNote.deliveryDate,
+                        items: deliveryNote.lines.map((line) => ({
+                          productId: line.productId,
+                          quantity: line.quantity,
+                        })),
+                        createdAt: deliveryNote.createdAt,
+                        totalHT: 0,
+                        status: deliveryNote.status,
+                      };
+                      setSelectedOrder(orderFromDeliveryNote);
+                    }
+                  }
+                  setShowDeliveryPreparation(false);
+                  setSelectedPickingTask(null);
+                  setShowDeliveryNoteDetails(true);
+                }}
+                onStatusUpdate={handleStatusUpdate}
+                onRedirectToStockCheck={() => {
+                  setShowDeliveryPreparation(false);
+                  setSelectedPickingTask(null);
+                  setShowOrderDetailsPage(true);
+                }}
+                onRedirectToDetails={() => {
+                  setShowDeliveryPreparation(false);
+                  setSelectedPickingTask(null);
+                  setShowDeliveryNoteDetails(true);
+                }}
+                onViewSalesOrder={handleViewSalesOrder}
+              />
+            ) : mode === 'clients' &&
               showDeliveryNoteDetails &&
               selectedOrder ? (
               <DeliveryNoteDetailsPage
@@ -517,26 +723,39 @@ export default function App() {
                       Produits
                     </button>
                   </div>
-                  {mode === 'clients' && (
-                    <button
-                      onClick={() =>
-                        setView(view === 'list' ? 'calendar' : 'list')
-                      }
-                      className='flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#12895a] text-white text-[12px] font-semibold hover:bg-[#107a4d] transition-colors'
-                    >
-                      {view === 'list' ? (
-                        <>
-                          <CalendarIcon className='w-4 h-4' />
-                          Calendrier
-                        </>
-                      ) : (
-                        <>
-                          <ListIcon className='w-4 h-4' />
-                          Liste
-                        </>
-                      )}
-                    </button>
-                  )}
+                  <div className='flex items-center gap-2'>
+                    {mode === 'products' && (
+                      <button
+                        onClick={() => {
+                          setShowManufacturingOrder(true);
+                        }}
+                        className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#12895a] text-white text-[12px] font-semibold hover:bg-[#107a4d] transition-colors'
+                      >
+                        <Plus className='w-4 h-4' />
+                        OF
+                      </button>
+                    )}
+                    {mode === 'clients' && (
+                      <button
+                        onClick={() =>
+                          setView(view === 'list' ? 'calendar' : 'list')
+                        }
+                        className='flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#12895a] text-white text-[12px] font-semibold hover:bg-[#107a4d] transition-colors'
+                      >
+                        {view === 'list' ? (
+                          <>
+                            <CalendarIcon className='w-4 h-4' />
+                            Calendrier
+                          </>
+                        ) : (
+                          <>
+                            <ListIcon className='w-4 h-4' />
+                            Liste
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {mode === 'products' ? (
@@ -680,192 +899,36 @@ export default function App() {
                     </div>
                   </div>
                 ) : view === 'list' ? (
-                  <>
-                    {/* Filtres rapides avec navigation */}
-                    <div className='mb-4'>
-                      <div className='flex gap-2 mb-2 overflow-x-auto pb-2'>
-                        {[
-                          { key: 'all', label: 'Tout' },
-                          { key: 'today', label: "Aujourd'hui" },
-                          { key: 'week', label: 'Cette semaine' },
-                          { key: 'month', label: 'Ce mois' },
-                        ].map((filter) => (
-                          <button
-                            key={filter.key}
-                            onClick={() => {
-                              setTimeRange(filter.key as any);
-                              // Réinitialiser la date de référence quand on change de filtre
-                              if (filter.key !== 'all') {
-                                setFilterReferenceDate(now);
-                              }
-                            }}
-                            className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap ${
-                              timeRange === filter.key
-                                ? 'bg-[#12895a] text-white'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}
-                          >
-                            {filter.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Navigation par période (flèches) - affichée uniquement pour today, week, month */}
-                      {timeRange !== 'all' && (
-                        <div className='flex items-center justify-center gap-4 mt-2'>
-                          <button
-                            onClick={() => {
-                              if (timeRange === 'today') {
-                                setFilterReferenceDate(
-                                  addDays(filterReferenceDate, -1)
-                                );
-                              } else if (timeRange === 'week') {
-                                setFilterReferenceDate(
-                                  addDays(filterReferenceDate, -7)
-                                );
-                              } else if (timeRange === 'month') {
-                                const newDate = new Date(filterReferenceDate);
-                                newDate.setMonth(newDate.getMonth() - 1);
-                                setFilterReferenceDate(newDate);
-                              }
-                            }}
-                            className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
-                          >
-                            <ChevronLeft className='w-5 h-5 text-gray-600' />
-                          </button>
-
-                          <div className='text-center min-w-[120px]'>
-                            <p className='text-[12px] font-semibold text-gray-700'>
-                              {timeRange === 'today'
-                                ? format(filterReferenceDate, 'EEEE dd MMMM', {
-                                    locale: fr,
-                                  })
-                                : timeRange === 'week'
-                                ? `Semaine du ${format(
-                                    startOfWeek(filterReferenceDate, {
-                                      locale: fr,
-                                    }),
-                                    'dd MMM',
-                                    { locale: fr }
-                                  )}`
-                                : format(filterReferenceDate, 'MMMM yyyy', {
-                                    locale: fr,
-                                  })}
-                            </p>
-                          </div>
-
-                          <button
-                            onClick={() => {
-                              if (timeRange === 'today') {
-                                setFilterReferenceDate(
-                                  addDays(filterReferenceDate, 1)
-                                );
-                              } else if (timeRange === 'week') {
-                                setFilterReferenceDate(
-                                  addDays(filterReferenceDate, 7)
-                                );
-                              } else if (timeRange === 'month') {
-                                const newDate = new Date(filterReferenceDate);
-                                newDate.setMonth(newDate.getMonth() + 1);
-                                setFilterReferenceDate(newDate);
-                              }
-                            }}
-                            className='p-2 rounded-lg hover:bg-gray-100 transition-colors'
-                          >
-                            <ChevronRight className='w-5 h-5 text-gray-600' />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Liste groupée par date avec filtres */}
-                    <div className='space-y-4 pb-20'>
-                      {(() => {
-                        // Filtrer les commandes selon le timeRange
-                        let filteredOrders = getSortedOrdersByUrgency();
-
-                        if (timeRange === 'today') {
-                          filteredOrders = filteredOrders.filter((order) =>
-                            isSameDay(order.deliveryDate, filterReferenceDate)
-                          );
-                        } else if (timeRange === 'week') {
-                          const weekStart = startOfWeek(filterReferenceDate, {
-                            locale: fr,
-                          });
-                          const weekEnd = endOfWeek(filterReferenceDate, {
-                            locale: fr,
-                          });
-                          filteredOrders = filteredOrders.filter(
-                            (order) =>
-                              order.deliveryDate >= weekStart &&
-                              order.deliveryDate <= weekEnd
-                          );
-                        } else if (timeRange === 'month') {
-                          const monthStart = startOfMonth(filterReferenceDate);
-                          const monthEnd = endOfMonth(filterReferenceDate);
-                          filteredOrders = filteredOrders.filter(
-                            (order) =>
-                              order.deliveryDate >= monthStart &&
-                              order.deliveryDate <= monthEnd
-                          );
-                        }
-                        // 'all' ne filtre rien
-
-                        const grouped = groupOrdersByDate(filteredOrders);
-                        const sortedDates = Object.keys(grouped).sort();
-
-                        if (sortedDates.length === 0) {
-                          return (
-                            <div className='text-center py-8 text-gray-500'>
-                              <p className='text-[14px]'>
-                                Aucune commande pour cette période
-                              </p>
-                            </div>
-                          );
-                        }
-
-                        return sortedDates.map((dateKey) => {
-                          // Parse dateKey (YYYY-MM-DD) and normalize to local midnight
-                          const [year, month, day] = dateKey
-                            .split('-')
-                            .map(Number);
-                          const date = new Date(
-                            year,
-                            month - 1,
-                            day,
-                            0,
-                            0,
-                            0,
-                            0
-                          );
-                          const dayOrders = grouped[dateKey];
-                          const daysUntil = getDaysUntil(date, now);
-
-                          // Rouge pour aujourd'hui ou dans le passé, gris pour le reste
-                          const sectionColor =
-                            daysUntil <= 0 ? 'text-red-700' : 'text-gray-700';
-
-                          return (
-                            <div key={dateKey} className='space-y-2'>
-                              <div className='flex items-center gap-3 py-2'>
-                                <p
-                                  className={`font-semibold text-[14px] ${sectionColor} flex-1`}
-                                >
-                                  {getSectionDateLabel(date, daysUntil)}
-                                </p>
-                                <span className='text-[12px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full'>
-                                  {dayOrders.length}
-                                </span>
-                              </div>
-                              <div className='space-y-2 pl-2'>
-                                {dayOrders.map((order) => getOrderCard(order))}
-                              </div>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  </>
+                  // NOUVEAU SYSTÈME : Utiliser OrdersListView avec Unified Orders
+                  (() => {
+                    const sortedOrders = getSortedUnifiedOrdersByPriority();
+                    return (
+                      <OrdersListView
+                        unifiedOrders={sortedOrders}
+                        useUnifiedView={true}
+                        timeRange={timeRange}
+                        activeMode={activeMode}
+                        filterReferenceDate={filterReferenceDate}
+                        today={now}
+                        onFilterChange={(filterKey) => {
+                          setTimeRange(filterKey);
+                          setActiveMode('period');
+                          if (filterKey !== 'all') {
+                            setFilterReferenceDate(now);
+                          }
+                        }}
+                        onResetDate={() => setFilterReferenceDate(now)}
+                        onNavigatePeriod={navigatePeriod}
+                        onOrderClick={(order) => {
+                          if ('sourceType' in order) {
+                            handleUnifiedOrderClick(order);
+                          } else {
+                            openOrderDetails(order);
+                          }
+                        }}
+                      />
+                    );
+                  })()
                 ) : (
                   <div>
                     {/* Calendrier mensuel simple - Le composant MUI a déjà sa propre navigation */}
@@ -1268,386 +1331,6 @@ export default function App() {
                   </div>
                 )}
               </div>
-            )}
-
-            {mode === 'clients' && !showOrderDetailsPage && (
-              <>
-                {view === 'list' && (
-                  <OrdersListInline
-                    orders={getOrdersForAtelier()}
-                    today={now}
-                    onOrderClick={openOrderDetails}
-                  />
-                )}
-
-                {view === 'calendar' && (
-                  <div>
-                    {/* Time Range Selector */}
-                    <div className='flex gap-2 mb-4'>
-                      <button
-                        onClick={() => {
-                          setTimeRange('week');
-                        }}
-                        className={`px-3 py-1 rounded text-[12px] font-semibold ${
-                          timeRange === 'week'
-                            ? 'bg-[#12895a] text-white'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}
-                      >
-                        Semaine
-                      </button>
-                      <button
-                        onClick={() => {
-                          setTimeRange('month');
-                        }}
-                        className={`px-3 py-1 rounded text-[12px] font-semibold ${
-                          timeRange === 'month'
-                            ? 'bg-[#12895a] text-white'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}
-                      >
-                        Mois
-                      </button>
-                    </div>
-
-                    {timeRange === 'week' && (
-                      <>
-                        {/* Navigation with Date Picker */}
-                        <div className='flex items-center justify-between mb-4 gap-2'>
-                          <button
-                            onClick={() =>
-                              setCurrentDate(addDays(currentDate, -7))
-                            }
-                            className='p-2'
-                          >
-                            <ChevronLeft className='w-5 h-5' />
-                          </button>
-                          <LocalizationProvider
-                            dateAdapter={AdapterDayjs}
-                            adapterLocale='fr'
-                          >
-                            <DatePicker
-                              value={dayjs(currentDate)}
-                              onChange={(newValue) => {
-                                if (newValue) {
-                                  setCurrentDate(newValue.toDate());
-                                }
-                              }}
-                              slotProps={{
-                                textField: {
-                                  variant: 'standard',
-                                  sx: {
-                                    '& .MuiInputBase-root': {
-                                      fontSize: '14px',
-                                      fontWeight: 600,
-                                    },
-                                    '& .MuiInput-underline:before': {
-                                      borderBottom: 'none',
-                                    },
-                                    '& .MuiInput-underline:hover:before': {
-                                      borderBottom: 'none',
-                                    },
-                                    '& .MuiInput-underline:after': {
-                                      borderBottom: 'none',
-                                    },
-                                  },
-                                },
-                              }}
-                              format='DD MMM YYYY'
-                            />
-                          </LocalizationProvider>
-                          <button
-                            onClick={() =>
-                              setCurrentDate(addDays(currentDate, 7))
-                            }
-                            className='p-2'
-                          >
-                            <ChevronRight className='w-5 h-5' />
-                          </button>
-                        </div>
-
-                        {/* Week Calendar Grid */}
-                        <div className='space-y-2'>
-                          {getDaysInRange().map((day) => {
-                            const dayOrders = getOrdersForDate(day);
-                            const isToday = isSameDay(day, now);
-
-                            return (
-                              <div
-                                key={day.toISOString()}
-                                className={`border rounded-lg p-3 ${
-                                  isToday
-                                    ? 'border-[#12895a] bg-green-50'
-                                    : 'border-gray-200'
-                                }`}
-                              >
-                                <div className='flex justify-between items-center mb-2'>
-                                  <p className='font-semibold text-[12px]'>
-                                    {format(day, 'EEEE dd MMM', {
-                                      locale: fr,
-                                    })}
-                                  </p>
-                                  <span className='text-[10px] text-gray-500'>
-                                    {dayOrders.length}{' '}
-                                    {dayOrders.length > 1
-                                      ? 'commandes'
-                                      : 'commande'}
-                                  </span>
-                                </div>
-                                {dayOrders.length > 0 && (
-                                  <div className='space-y-1'>
-                                    {dayOrders.map((order) => (
-                                      <div
-                                        key={order.id}
-                                        onClick={() => openOrderDetails(order)}
-                                        className={`text-[11px] p-2 rounded cursor-pointer transition-all ${
-                                          order.type === 'BC'
-                                            ? 'bg-blue-100/60 hover:bg-blue-200/60'
-                                            : 'bg-orange-100/60 hover:bg-orange-200/60'
-                                        }`}
-                                      >
-                                        <span className='font-semibold'>
-                                          {order.client}
-                                        </span>{' '}
-                                        - {order.number} ({order.type})
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </>
-                    )}
-
-                    {timeRange === 'month' && (
-                      <>
-                        {/* MUI DateCalendar with badges */}
-                        <LocalizationProvider
-                          dateAdapter={AdapterDayjs}
-                          adapterLocale='fr'
-                        >
-                          <DateCalendar
-                            value={dayjs(selectedCalendarDay || currentDate)}
-                            onChange={(newValue) => {
-                              if (newValue) {
-                                setSelectedCalendarDay(newValue.toDate());
-                              }
-                            }}
-                            onMonthChange={(newMonth) => {
-                              setCurrentDate(newMonth.toDate());
-                            }}
-                            slots={{
-                              day: (dayProps: any) => {
-                                const currentDay = dayProps.day.toDate();
-                                const dayOrders = getOrdersForDate(currentDay);
-                                const totalCount = dayOrders.length;
-
-                                // Render logic: show up to 3 dots, then 2 dots + count
-                                const renderDots = () => {
-                                  if (totalCount === 0) return null;
-
-                                  // Show individual dots for 1-3 documents
-                                  if (totalCount <= 3) {
-                                    return (
-                                      <div className='absolute bottom-0 left-1/2 transform -translate-x-1/2 flex gap-0.5 items-center'>
-                                        {dayOrders.map((order, idx) => (
-                                          <div
-                                            key={idx}
-                                            className={`w-1.5 h-1.5 rounded-full ${
-                                              order.type === 'BC'
-                                                ? 'bg-blue-600'
-                                                : 'bg-green-600'
-                                            }`}
-                                          />
-                                        ))}
-                                      </div>
-                                    );
-                                  }
-
-                                  // For 4+ documents: show 2 dots + "+X"
-                                  return (
-                                    <div className='absolute bottom-0 left-1/2 transform -translate-x-1/2 flex gap-0.5 items-center'>
-                                      {dayOrders
-                                        .slice(0, 2)
-                                        .map((order, idx) => (
-                                          <div
-                                            key={idx}
-                                            className={`w-1.5 h-1.5 rounded-full ${
-                                              order.type === 'BC'
-                                                ? 'bg-blue-600'
-                                                : 'bg-green-600'
-                                            }`}
-                                          />
-                                        ))}
-                                      <span className='text-[8px] font-bold text-gray-600'>
-                                        +{totalCount - 2}
-                                      </span>
-                                    </div>
-                                  );
-                                };
-
-                                return (
-                                  <div className='relative'>
-                                    <PickersDay {...dayProps} />
-                                    {renderDots()}
-                                  </div>
-                                );
-                              },
-                            }}
-                            sx={{
-                              width: '100%',
-                              maxWidth: '100%',
-                              '& .MuiPickersCalendarHeader-root': {
-                                paddingLeft: 1,
-                                paddingRight: 1,
-                              },
-                              '& .MuiDayCalendar-header': {
-                                justifyContent: 'space-around',
-                              },
-                              '& .MuiDayCalendar-weekContainer': {
-                                justifyContent: 'space-around',
-                              },
-                              '& .MuiPickersDay-root': {
-                                fontSize: '0.875rem',
-                              },
-                            }}
-                          />
-                        </LocalizationProvider>
-
-                        {/* Orders list for selected day */}
-                        {selectedCalendarDay && (
-                          <>
-                            <div className='border-t border-gray-200 my-4' />
-                            <div>
-                              <h3 className='font-semibold text-[14px] mb-3'>
-                                {format(
-                                  selectedCalendarDay,
-                                  'EEEE dd MMMM yyyy',
-                                  {
-                                    locale: fr,
-                                  }
-                                )}
-                              </h3>
-                              {getOrdersForDate(selectedCalendarDay).length >
-                              0 ? (
-                                <div className='space-y-3 pb-20'>
-                                  {getOrdersForDate(selectedCalendarDay).map(
-                                    (order) => {
-                                      const totalQty = order.items.reduce(
-                                        (sum, item) => sum + item.quantity,
-                                        0
-                                      );
-                                      const daysUntil = getDaysUntil(
-                                        order.deliveryDate,
-                                        now
-                                      );
-
-                                      // Color code for date
-                                      let dateColor = 'text-gray-600';
-                                      let dateBgColor = 'bg-gray-100';
-                                      if (daysUntil < 0) {
-                                        dateColor = 'text-red-600';
-                                        dateBgColor = 'bg-red-50';
-                                      } else if (daysUntil < 7) {
-                                        dateColor = 'text-orange-600';
-                                        dateBgColor = 'bg-orange-50';
-                                      }
-
-                                      return (
-                                        <div
-                                          key={order.id}
-                                          onClick={() =>
-                                            openOrderDetails(order)
-                                          }
-                                          className={`border rounded-lg p-4 relative cursor-pointer transition-all ${
-                                            order.type === 'BC'
-                                              ? 'border-blue-300 bg-blue-50/40 hover:bg-blue-50'
-                                              : 'border-orange-300 bg-orange-50/40 hover:bg-orange-50'
-                                          }`}
-                                        >
-                                          {/* Badge BC/BL */}
-                                          <span
-                                            className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-semibold ${
-                                              order.type === 'BC'
-                                                ? 'bg-blue-100 text-blue-700'
-                                                : 'bg-orange-100 text-orange-700'
-                                            }`}
-                                          >
-                                            {order.type}
-                                          </span>
-
-                                          <div className='flex items-start gap-3'>
-                                            {/* Customer Logo */}
-                                            <img
-                                              src={
-                                                clientLogos[order.client] || ''
-                                              }
-                                              alt=''
-                                              className='w-12 h-12 rounded object-cover flex-shrink-0'
-                                            />
-
-                                            {/* Order Information */}
-                                            <div className='flex-1 min-w-0 space-y-1.5'>
-                                              {/* Line 1: Customer name */}
-                                              <p className='font-semibold text-[16px] text-gray-900'>
-                                                {order.client}
-                                              </p>
-
-                                              {/* Line 2: Delivery deadline */}
-                                              <div className='flex items-center gap-1.5'>
-                                                <span
-                                                  className={`${dateColor} font-semibold text-[13px] px-2 py-0.5 rounded ${dateBgColor}`}
-                                                >
-                                                  {format(
-                                                    order.deliveryDate,
-                                                    'dd/MM/yy',
-                                                    { locale: fr }
-                                                  )}
-                                                  {' · '}
-                                                  {daysUntil < 0
-                                                    ? `-${Math.abs(daysUntil)}j`
-                                                    : daysUntil === 0
-                                                    ? 'Auj.'
-                                                    : `+${daysUntil}j`}
-                                                </span>
-                                              </div>
-
-                                              {/* Line 3: Order contents */}
-                                              <p className='text-[13px] text-gray-700'>
-                                                {order.items.length} article
-                                                {order.items.length > 1
-                                                  ? 's'
-                                                  : ''}{' '}
-                                                différent
-                                                {order.items.length > 1
-                                                  ? 's'
-                                                  : ''}{' '}
-                                                • {totalQty} unités
-                                              </p>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                  )}
-                                </div>
-                              ) : (
-                                <div className='text-center py-8 text-gray-500'>
-                                  <p className='text-[14px]'>
-                                    Aucune commande ce jour
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-              </>
             )}
           </div>
 
