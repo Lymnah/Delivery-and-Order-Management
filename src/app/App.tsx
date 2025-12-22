@@ -74,6 +74,7 @@ import {
   getSectionDateLabel,
   groupOrdersByDate,
 } from './utils/dateHelpers';
+import { mapLegacyStatusToNew, isLegacyStatus } from './utils/statusHelpers';
 
 // Set dayjs locale globally
 dayjs.locale('fr');
@@ -295,20 +296,27 @@ export default function App() {
       }
       setShowOrderDetailsPage(true);
     } else if (order.type === 'BL') {
-      // BL: Navigate based on status (legacy French statuses)
+      // BL: Navigate based on status (support both legacy and new statuses)
       const status = order.status as string;
-      if (status === 'À préparer' || status === 'DRAFT') {
+
+      // Map legacy status to new if needed
+      const mappedStatus = isLegacyStatus(status)
+        ? mapLegacyStatusToNew(status, 'BL')
+        : status;
+
+      if (mappedStatus === 'READY_TO_SHIP' || status === 'READY_TO_SHIP') {
         setShowOrderDetailsPage(true);
-      } else if (status === 'En préparation' || status === 'IN_PROGRESS') {
+      } else if (
+        mappedStatus === 'SHIPPED' ||
+        status === 'SHIPPED' ||
+        status === 'IN_PROGRESS'
+      ) {
         setShowDeliveryPreparation(true);
       } else if (
-        status === 'Prêt à expédier' ||
+        mappedStatus === 'SHIPPED' ||
+        mappedStatus === 'INVOICED' ||
         status === 'SHIPPED' ||
-        status === 'Expédié' ||
-        status === 'Livré' ||
-        status === 'Facturé' ||
-        status === 'INVOICED' ||
-        status === 'Annulé'
+        status === 'INVOICED'
       ) {
         setShowDeliveryNoteDetails(true);
       } else {

@@ -27,6 +27,8 @@ import {
   getStatusBadgeColor,
   getStatusLabel,
   getPickingTaskStatusLabelFr,
+  mapLegacyStatusToNew,
+  isLegacyStatus,
 } from '../../utils/statusHelpers';
 
 type PreparationState =
@@ -322,10 +324,17 @@ export default function DeliveryPreparationPage({
       };
 
       const updatedLots = [...preparation.scannedLots, newLot];
-      const updatedStatus: DeliveryNoteStatus =
-        preparation.status === 'À préparer'
-          ? 'En préparation'
-          : preparation.status;
+      // Map legacy status to new status if needed
+      const updatedStatus: DeliveryNoteStatus = isLegacyStatus(
+        preparation.status as string
+      )
+        ? (mapLegacyStatusToNew(
+            preparation.status as string,
+            'BL'
+          ) as DeliveryNoteStatus) || 'READY_TO_SHIP'
+        : preparation.status === 'READY_TO_SHIP'
+        ? 'READY_TO_SHIP' // Keep as is
+        : (preparation.status as DeliveryNoteStatus);
 
       const updatedPreparation = {
         ...preparation,
@@ -384,11 +393,14 @@ export default function DeliveryPreparationPage({
       }
     } else if (isLegacyOrder && legacyOrder) {
       // Legacy: update DeliveryPreparation
-      if (legacyOrder.status !== 'En préparation') return;
+      const legacyStatus = legacyOrder.status as string;
+      if (legacyStatus !== 'En préparation' && !isLegacyStatus(legacyStatus))
+        return;
 
+      const newStatus = 'READY_TO_SHIP' as DeliveryNoteStatus;
       const updatedPreparation = {
         ...preparation,
-        status: 'Prêt à expédier' as DeliveryNoteStatus,
+        status: newStatus,
         preparedAt: new Date(),
       };
 
@@ -398,7 +410,7 @@ export default function DeliveryPreparationPage({
 
       // Update order status
       if (onStatusUpdate) {
-        onStatusUpdate(legacyOrder.id, 'Prêt à expédier');
+        onStatusUpdate(legacyOrder.id, newStatus);
       }
 
       // Show confirmation and navigate to details page after 2 seconds

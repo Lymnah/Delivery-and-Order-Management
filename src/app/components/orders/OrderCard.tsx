@@ -129,7 +129,19 @@ export default function OrderCard({
   };
 
   const realStatus = getRealStatus();
-  const statusColors = getStatusBadgeColor(realStatus.status as any);
+  // Determine documentType from unifiedOrder.sourceType or order.type
+  // Note: DocumentType is 'BC' | 'BL', but UnifiedOrder.sourceType can be 'BC' | 'BP' | 'BL'
+  // We'll pass 'BL' for BP since BP doesn't have READY_TO_SHIP status anyway
+  const documentType: 'BC' | 'BL' | undefined =
+    isUnified && unifiedOrder
+      ? unifiedOrder.sourceType === 'BP'
+        ? 'BL'
+        : (unifiedOrder.sourceType as 'BC' | 'BL')
+      : (order?.type as 'BC' | 'BL' | undefined);
+  const statusColors = getStatusBadgeColor(
+    realStatus.status as any,
+    documentType
+  );
 
   // --- 3. LOGIQUE VISUELLE (State Machine) ---
   const getVisualState = () => {

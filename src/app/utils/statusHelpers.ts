@@ -3,6 +3,8 @@ import type {
   DeliveryNoteStatus,
   PickingTaskStatus,
   DocumentType,
+  LegacySalesOrderStatus,
+  LegacyDeliveryNoteStatus,
 } from '../../data/database';
 
 export type OrderStatus =
@@ -348,4 +350,77 @@ export function canCancelOrder(
   }
 
   return false;
+}
+
+/**
+ * Maps legacy status strings to new status enums
+ * Used during migration from legacy Order system to new document model
+ */
+export function mapLegacyStatusToNew(
+  legacyStatus: string,
+  documentType?: DocumentType
+): SalesOrderStatus | DeliveryNoteStatus | PickingTaskStatus | null {
+  // Legacy SalesOrder statuses
+  const salesOrderMap: Record<string, SalesOrderStatus> = {
+    Brouillon: 'DRAFT',
+    Confirmé: 'CONFIRMED',
+    'Partiellement livré': 'PARTIALLY_SHIPPED',
+    Livré: 'SHIPPED',
+    Clos: 'INVOICED',
+  };
+
+  // Legacy DeliveryNote statuses
+  const deliveryNoteMap: Record<string, DeliveryNoteStatus> = {
+    'À préparer': 'READY_TO_SHIP', // BL created but not yet shipped
+    'En préparation': 'READY_TO_SHIP', // Actually a BP status, but mapped to BL
+    'Prêt à expédier': 'READY_TO_SHIP',
+    Expédié: 'SHIPPED',
+    Livré: 'SHIPPED', // Same as shipped
+    Facturé: 'INVOICED',
+    Annulé: 'READY_TO_SHIP', // Cancelled, but we'll treat as ready to ship for now
+  };
+
+  // Legacy PickingTask statuses (if any)
+  const pickingTaskMap: Record<string, PickingTaskStatus> = {
+    'En préparation': 'IN_PROGRESS', // This is actually a BP status
+  };
+
+  // Try to map based on document type
+  if (documentType === 'BC' || salesOrderMap[legacyStatus]) {
+    return salesOrderMap[legacyStatus] || null;
+  }
+  if (documentType === 'BL' || deliveryNoteMap[legacyStatus]) {
+    return deliveryNoteMap[legacyStatus] || null;
+  }
+  if (documentType === 'BP' || pickingTaskMap[legacyStatus]) {
+    return pickingTaskMap[legacyStatus] || null;
+  }
+
+  // Fallback: try all maps
+  return (
+    salesOrderMap[legacyStatus] ||
+    deliveryNoteMap[legacyStatus] ||
+    pickingTaskMap[legacyStatus] ||
+    null
+  );
+}
+
+/**
+ * Checks if a status string is a legacy status
+ */
+export function isLegacyStatus(status: string): boolean {
+  const legacyStatuses = [
+    'Brouillon',
+    'Confirmé',
+    'Partiellement livré',
+    'Livré',
+    'Clos',
+    'À préparer',
+    'En préparation',
+    'Prêt à expédier',
+    'Expédié',
+    'Facturé',
+    'Annulé',
+  ];
+  return legacyStatuses.includes(status);
 }

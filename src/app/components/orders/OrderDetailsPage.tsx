@@ -24,6 +24,8 @@ import {
   getStatusBadgeColor,
   getStatusLabel,
   getSalesOrderStatusLabelFr,
+  mapLegacyStatusToNew,
+  isLegacyStatus,
 } from '../../utils/statusHelpers';
 
 interface OrderDetailsPageProps {
@@ -222,8 +224,8 @@ export default function OrderDetailsPage({
   // Legacy BL: Prepare delivery
   const handlePrepareDelivery = () => {
     if (isLegacyBL && allProductsOk && onPrepareDelivery && onStatusUpdate) {
-      // Update status to 'En préparation'
-      onStatusUpdate(legacyOrder!.id, 'En préparation' as DeliveryNoteStatus);
+      // Update status to READY_TO_SHIP (mapped from legacy 'En préparation')
+      onStatusUpdate(legacyOrder!.id, 'READY_TO_SHIP' as DeliveryNoteStatus);
       // Navigate to delivery preparation page
       onPrepareDelivery();
     }
@@ -546,8 +548,14 @@ export default function OrderDetailsPage({
         {/* ===== Legacy BL Actions ===== */}
         {isLegacyBL && (
           <>
-            {/* Prepare delivery button - only visible if BL with status 'À préparer' */}
-            {legacyOrder!.status === 'À préparer' && !isReadOnly && (
+            {/* Prepare delivery button - only visible if BL with status READY_TO_SHIP */}
+            {(() => {
+              const status = legacyOrder!.status as string;
+              const isReady = isLegacyStatus(status)
+                ? mapLegacyStatusToNew(status, 'BL') === 'READY_TO_SHIP'
+                : status === 'READY_TO_SHIP';
+              return isReady && !isReadOnly;
+            })() && (
               <button
                 disabled={!allProductsOk}
                 onClick={handlePrepareDelivery}

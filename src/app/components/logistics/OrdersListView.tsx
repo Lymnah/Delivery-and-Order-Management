@@ -280,11 +280,26 @@ export default function OrdersListView({
     });
   }
 
-  // Sort overdue orders from oldest to newest (top to bottom)
-  overdueOrders.sort(
-    (a, b) =>
+  // Sort overdue orders: first by document type (BL > BP > BC), then by date (oldest first)
+  overdueOrders.sort((a, b) => {
+    // Define priority: BL = 1, BP = 2, BC = 3 (lower number = higher priority)
+    const priorityMap: Record<string, number> = {
+      BL: 1,
+      BP: 2,
+      BC: 3,
+    };
+    const priorityA = priorityMap[a.sourceType] || 999;
+    const priorityB = priorityMap[b.sourceType] || 999;
+
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+
+    // If same type, sort by delivery date (oldest first for overdue)
+    return (
       new Date(a.deliveryDate).getTime() - new Date(b.deliveryDate).getTime()
-  );
+    );
+  });
 
   // Group other orders by date
   const groupedUnified: Record<string, UnifiedOrder[]> = {};
@@ -301,6 +316,30 @@ export default function OrdersListView({
         groupedUnified[dateKey] = [];
       }
       groupedUnified[dateKey].push(order);
+    });
+
+    // Sort orders within each date group: BL > BP > BC
+    Object.keys(groupedUnified).forEach((dateKey) => {
+      groupedUnified[dateKey].sort((a, b) => {
+        // Define priority: BL = 1, BP = 2, BC = 3 (lower number = higher priority)
+        const priorityMap: Record<string, number> = {
+          BL: 1,
+          BP: 2,
+          BC: 3,
+        };
+        const priorityA = priorityMap[a.sourceType] || 999;
+        const priorityB = priorityMap[b.sourceType] || 999;
+
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+
+        // If same type, sort by delivery date (most urgent first)
+        return (
+          new Date(a.deliveryDate).getTime() -
+          new Date(b.deliveryDate).getTime()
+        );
+      });
     });
   }
   const sortedUnifiedDates = Object.keys(groupedUnified).sort();
