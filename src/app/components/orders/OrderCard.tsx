@@ -84,7 +84,7 @@ export default function OrderCard({
             badgeBg: 'bg-orange-100',
             badgeText: 'text-orange-700',
             icon: Package,
-            statusLabel: 'En préparation',
+            statusLabel: 'En Prépa',
             showProgress: true,
             docFullLabel: 'Bon de préparation', // Texte clair
           };
@@ -96,7 +96,7 @@ export default function OrderCard({
             badgeText: 'text-green-700',
             icon: Truck,
             statusLabel:
-              unifiedOrder.lifecycle === 'SHIPPED' ? 'Expédié' : 'Prêt à quai',
+              unifiedOrder.lifecycle === 'SHIPPED' ? 'Expédié' : 'Prêt',
             showShipping: true,
             docFullLabel: 'Bon de livraison', // Texte clair
           };
@@ -186,7 +186,7 @@ export default function OrderCard({
           </div>
 
           {/* LIGNE 4 : Contenu Variable (Alerte / Progress / Poids) */}
-          <div className='mt-1 h-5 flex items-center'>
+          <div className='mt-1 flex flex-col gap-1'>
             {/* CAS A : Alerte Stock */}
             {visual.showStock && stockStatus && stockStatus !== 'IN_STOCK' ? (
               <div
@@ -203,20 +203,37 @@ export default function OrderCard({
                     : 'Rupture partielle'}
                 </span>
               </div>
-            ) : /* CAS B : Progression */
+            ) : /* CAS B : Progression (pour BP) */
             visual.showProgress &&
               unifiedOrder?.progressPercentage !== undefined ? (
-              <div className='flex items-center gap-2 w-full max-w-[140px]'>
-                <div className='flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden'>
-                  <div
-                    className='h-full bg-orange-500 rounded-full transition-all duration-500'
-                    style={{ width: `${unifiedOrder.progressPercentage}%` }}
-                  />
+              <>
+                {/* Barre de progression */}
+                <div className='flex items-center gap-2 w-full max-w-[140px]'>
+                  <div className='flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden'>
+                    <div
+                      className='h-full bg-orange-500 rounded-full transition-all duration-500'
+                      style={{ width: `${unifiedOrder.progressPercentage}%` }}
+                    />
+                  </div>
+                  <span className='text-[10px] font-bold text-orange-600'>
+                    {unifiedOrder.progressPercentage}%
+                  </span>
                 </div>
-                <span className='text-[10px] font-bold text-orange-600'>
-                  {unifiedOrder.progressPercentage}%
-                </span>
-              </div>
+                {/* Info Standard en dessous de la progression */}
+                <div className='flex items-center gap-3 text-[11px] text-gray-500'>
+                  <span className='flex items-center gap-1'>
+                    <Package className='w-3 h-3' /> {packagesCount} colis
+                  </span>
+                  <span className='flex items-center gap-1'>
+                    <ShoppingBasket className='w-3 h-3' /> {itemsCount} art.
+                  </span>
+                  {estimatedWeight > 0 && (
+                    <span className='flex items-center gap-1'>
+                      <Scale className='w-3 h-3' /> ~{estimatedWeight}kg
+                    </span>
+                  )}
+                </div>
+              </>
             ) : (
               /* CAS C : Info Standard */
               <div className='flex items-center gap-3 text-[11px] text-gray-500'>

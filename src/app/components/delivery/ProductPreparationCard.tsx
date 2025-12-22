@@ -1,5 +1,11 @@
 import React from 'react';
-import { Package, CheckCircle2, AlertCircle, Circle } from 'lucide-react';
+import {
+  Package,
+  CheckCircle2,
+  AlertCircle,
+  Circle,
+  ScanLine,
+} from 'lucide-react';
 import type { Product, ScannedLot } from '../../../data/database';
 
 type PreparationState =
@@ -24,33 +30,33 @@ export default function ProductPreparationCard({
     (sum, lot) => sum + lot.quantity,
     0
   );
-  const remainingQuantity = Math.max(0, requiredQuantity - scannedQuantity);
+  const progressPercent = Math.min(
+    100,
+    Math.round((scannedQuantity / requiredQuantity) * 100)
+  );
 
-  // State configuration
+  // Configuration Visuelle Compacte
   const stateConfig = {
     'not-prepared': {
       icon: Circle,
-      label: 'Non préparé',
-      bgColor: 'bg-gray-50',
-      borderColor: 'border-gray-300',
-      textColor: 'text-gray-700',
-      iconColor: 'text-gray-400',
+      statusColor: 'bg-gray-200', // Barre de progression
+      textColor: 'text-gray-500',
+      borderColor: 'border-l-gray-300',
+      lightBg: 'bg-gray-50',
     },
     'partially-prepared': {
       icon: AlertCircle,
-      label: `Partiellement préparé (${scannedQuantity} / ${requiredQuantity})`,
-      bgColor: 'bg-orange-50',
-      borderColor: 'border-orange-300',
-      textColor: 'text-orange-700',
-      iconColor: 'text-orange-500',
+      statusColor: 'bg-orange-500',
+      textColor: 'text-orange-600',
+      borderColor: 'border-l-orange-500',
+      lightBg: 'bg-orange-50',
     },
     'fully-prepared': {
       icon: CheckCircle2,
-      label: `Prêt (${scannedQuantity} / ${requiredQuantity})`,
-      bgColor: 'bg-green-50',
-      borderColor: 'border-green-300',
-      textColor: 'text-green-700',
-      iconColor: 'text-green-500',
+      statusColor: 'bg-green-500',
+      textColor: 'text-green-600',
+      borderColor: 'border-l-green-500',
+      lightBg: 'bg-green-50',
     },
   };
 
@@ -59,11 +65,11 @@ export default function ProductPreparationCard({
 
   return (
     <div
-      className={`border rounded-lg p-3 ${config.bgColor} ${config.borderColor}`}
+      className={`bg-white rounded-lg border border-gray-100 shadow-sm p-3 border-l-4 ${config.borderColor}`}
     >
-      <div className='flex items-start gap-3'>
-        {/* Product Image */}
-        <div className='w-12 h-12 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden'>
+      <div className='flex gap-3'>
+        {/* Image Produit (Plus petite) */}
+        <div className='w-10 h-10 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden'>
           {product.imageUrl ? (
             <img
               src={product.imageUrl}
@@ -71,65 +77,57 @@ export default function ProductPreparationCard({
               className='w-full h-full object-cover'
             />
           ) : (
-            <Package className='w-6 h-6 text-gray-400' />
+            <Package className='w-5 h-5 text-gray-300' />
           )}
         </div>
 
-        {/* Product Information */}
+        {/* Contenu Principal */}
         <div className='flex-1 min-w-0'>
-          {/* Product Name */}
-          <p className='font-semibold text-[15px] text-gray-900 mb-1'>
-            {product.name}
-          </p>
-
-          {/* Required Quantity */}
-          <div className='mb-2'>
-            <span className='text-[12px] text-gray-600'>
-              Quantité requise:{' '}
-              <span className='font-semibold text-gray-900'>
-                {requiredQuantity} u
+          {/* Header: Nom + Compteur */}
+          <div className='flex justify-between items-start mb-1.5'>
+            <h4 className='font-bold text-gray-900 text-sm truncate pr-2'>
+              {product.name}
+            </h4>
+            <div className='text-xs font-medium whitespace-nowrap'>
+              <span
+                className={
+                  preparationState === 'fully-prepared'
+                    ? 'text-green-600'
+                    : 'text-gray-900'
+                }
+              >
+                {scannedQuantity}
               </span>
-            </span>
-          </div>
-
-          {/* Preparation State Badge */}
-          <div className='flex items-center gap-2 mb-2'>
-            <StateIcon className={`w-4 h-4 ${config.iconColor}`} />
-            <span className={`text-[11px] font-semibold ${config.textColor}`}>
-              {config.label}
-            </span>
-          </div>
-
-          {/* Remaining Quantity (if partially prepared) */}
-          {preparationState === 'partially-prepared' &&
-            remainingQuantity > 0 && (
-              <div className='mb-2'>
-                <span className='text-[11px] text-orange-700 font-medium'>
-                  Reste à scanner: {remainingQuantity} u
-                </span>
-              </div>
-            )}
-
-          {/* Scanned Lots Section */}
-          {scannedLots.length > 0 && (
-            <div className='mt-2 pt-2 border-t border-gray-200'>
-              <p className='text-[10px] font-semibold text-gray-600 mb-1.5'>
-                Lots scannés ({scannedLots.length}):
-              </p>
-              <div className='space-y-1'>
-                {scannedLots.map((lot, index) => (
-                  <div
-                    key={index}
-                    className='flex items-center justify-between bg-white rounded px-2 py-1 text-[10px]'
-                  >
-                    <span className='font-medium text-gray-700'>
-                      {lot.lotNumber}
-                    </span>
-                    <span className='text-gray-600'>{lot.quantity} u</span>
-                  </div>
-                ))}
-              </div>
+              <span className='text-gray-400'> / {requiredQuantity}</span>
             </div>
+          </div>
+
+          {/* Barre de Progression */}
+          <div className='w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2'>
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${config.statusColor}`}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+
+          {/* Zone des Lots (Affichage horizontal en Chips) */}
+          {scannedLots.length > 0 ? (
+            <div className='flex flex-wrap gap-1.5'>
+              {scannedLots.map((lot, index) => (
+                <div
+                  key={index}
+                  className='inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200'
+                >
+                  <ScanLine className='w-3 h-3 mr-1 opacity-50' />
+                  <span className='font-mono'>{lot.lotNumber}</span>
+                  <span className='mx-1 text-gray-300'>|</span>
+                  <span className='font-bold'>{lot.quantity}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // Message vide discret si rien scanné
+            <p className='text-[10px] text-gray-400 italic'>Aucun lot scanné</p>
           )}
         </div>
       </div>

@@ -253,9 +253,43 @@ export default function OrdersListView({
       : ordersWithPast
     : [];
 
+  // Separate overdue orders from others
+  const overdueOrders: UnifiedOrder[] = [];
+  const otherOrders: UnifiedOrder[] = [];
+
+  if (useUnified) {
+    const normalizedToday = new Date(today);
+    normalizedToday.setHours(0, 0, 0, 0);
+
+    ordersToGroup.forEach((order) => {
+      const orderDate = new Date(order.deliveryDate);
+      orderDate.setHours(0, 0, 0, 0);
+
+      // Check if order is overdue (past date AND not shipped/invoiced/ready)
+      const isOverdue =
+        orderDate < normalizedToday &&
+        order.lifecycle !== 'SHIPPED' &&
+        order.lifecycle !== 'INVOICED' &&
+        order.lifecycle !== 'READY_TO_SHIP';
+
+      if (isOverdue) {
+        overdueOrders.push(order);
+      } else {
+        otherOrders.push(order);
+      }
+    });
+  }
+
+  // Sort overdue orders from oldest to newest (top to bottom)
+  overdueOrders.sort(
+    (a, b) =>
+      new Date(a.deliveryDate).getTime() - new Date(b.deliveryDate).getTime()
+  );
+
+  // Group other orders by date
   const groupedUnified: Record<string, UnifiedOrder[]> = {};
   if (useUnified) {
-    ordersToGroup.forEach((order) => {
+    otherOrders.forEach((order) => {
       // Normalize delivery date to midnight to ensure consistent grouping
       const normalizedDate = new Date(order.deliveryDate);
       normalizedDate.setHours(0, 0, 0, 0);
@@ -294,7 +328,7 @@ export default function OrdersListView({
 
       {/* Projection Stock Toggle */}
       {useUnified && (
-        <div className='mb-4 flex items-center justify-end gap-3'>
+        <div className='mb-2 mt-2 flex items-center justify-end gap-3'>
           <span className='text-sm font-medium text-gray-700'>Cumulé</span>
           <Switch
             checked={isProjectedMode}
@@ -333,98 +367,137 @@ export default function OrdersListView({
       <div className='space-y-4 pb-20'>
         {useUnified ? (
           // Unified view
-          sortedUnifiedDates.length === 0 ? (
+          overdueOrders.length === 0 && sortedUnifiedDates.length === 0 ? (
             <div className='text-center py-8 text-gray-500'>
               <p className='text-[14px]'>Aucune commande pour cette période</p>
             </div>
           ) : (
-            sortedUnifiedDates.map((dateKey) => {
-              // Parse dateKey (YYYY-MM-DD) and normalize to local midnight
-              const [year, month, day] = dateKey.split('-').map(Number);
-              const date = new Date(year, month - 1, day, 0, 0, 0, 0);
-              const dayOrders = groupedUnified[dateKey];
-              const daysUntil = getDaysUntil(date, today);
-
-              // Rouge pour aujourd'hui ou dans le passé, gris pour le reste
-              const sectionColor =
-                daysUntil <= 0 ? 'text-red-700' : 'text-gray-700';
-
-              // Check if this is today's section
-              const isToday = daysUntil === 0;
-
-              return (
-                <div key={dateKey} className='space-y-2'>
+            <>
+              {/* Section "En retard" - seulement si timeRange === 'all' et qu'il y a des retards */}
+              {timeRange === 'all' && overdueOrders.length > 0 && (
+                <div className='space-y-2'>
                   <div className='flex items-center justify-between py-2'>
-                    {/* Groupe gauche : Bouton + Titre (collés) */}
-                    <div className='flex items-center gap-2'>
-                      <p
-                        className={`font-semibold text-[14px] ${sectionColor}`}
-                      >
-                        {getSectionDateLabel(date, daysUntil)}
-                      </p>
-                      {/* "Voir précédents" button - only for today's section */}
-                      {isToday && (
-                        <button
-                          onClick={() => setShowPastOrders(!showPastOrders)}
-                          className='flex items-center gap-2 text-[#12895a] -ml-2 px-2 py-1 hover:bg-gray-100 rounded transition-all'
-                        >
-                          <span className='text-[12px] font-semibold'>
-                            {showPastOrders ? 'Masquer' : 'Voir précédents'}
-                          </span>
-                        </button>
-                      )}
-                    </div>
-                    {/* Badge à droite */}
-                    <span className='text-[12px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0'>
-                      {dayOrders.length}
+                    <p className='font-semibold text-[14px] text-red-700'>
+                      En retard
+                    </p>
+                    <span className='text-[12px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full'>
+                      {overdueOrders.length}
                     </span>
                   </div>
                   <div className='space-y-2 pl-2'>
-                    {dayOrders.map((unifiedOrder, index) => {
-                      // Inject projected stock status if projection mode is active
-                      const specificStockStatus: StockStatus | undefined =
-                        isProjectedMode && projectedStatuses
-                          ? projectedStatuses.get(unifiedOrder.id)
-                          : undefined;
-
-                      // Check if this order has products that first go out of stock
-                      const firstStockoutsInThisOrder =
-                        isProjectedMode && firstStockoutProducts
-                          ? firstStockoutProducts.get(unifiedOrder.id)
-                          : null;
-
-                      return (
-                        <div key={unifiedOrder.id}>
-                          {/* UX: Stock Out Divider - one per product that first goes out of stock */}
-                          {firstStockoutsInThisOrder &&
-                            firstStockoutsInThisOrder.size > 0 &&
-                            Array.from(firstStockoutsInThisOrder).map(
-                              (productId) => (
-                                <StockOutDivider
-                                  key={`${unifiedOrder.id}-${productId}`}
-                                  unifiedOrder={unifiedOrder}
-                                  productId={productId}
-                                />
-                              )
-                            )}
-
-                          <OrderCard
-                            unifiedOrder={{
-                              ...unifiedOrder,
-                              // Override stockStatus with projected status if available
-                              stockStatus:
-                                specificStockStatus || unifiedOrder.stockStatus,
-                            }}
-                            today={today}
-                            onClick={onOrderClick}
-                          />
-                        </div>
-                      );
-                    })}
+                    {overdueOrders.map((order) => (
+                      <OrderCard
+                        key={order.id}
+                        unifiedOrder={order}
+                        today={today}
+                        onClick={onOrderClick}
+                      />
+                    ))}
                   </div>
                 </div>
-              );
-            })
+              )}
+
+              {/* Sections par date (Aujourd'hui, Futur) */}
+              {sortedUnifiedDates.map((dateKey) => {
+                // Parse dateKey (YYYY-MM-DD) and normalize to local midnight
+                const [year, month, day] = dateKey.split('-').map(Number);
+                const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+                const dayOrders = groupedUnified[dateKey];
+                const daysUntil = getDaysUntil(date, today);
+
+                // Vérifier si toutes les commandes de ce groupe sont expédiées/terminées
+                const allOrdersShipped = dayOrders.every(
+                  (order) =>
+                    order.lifecycle === 'SHIPPED' ||
+                    order.lifecycle === 'INVOICED' ||
+                    order.lifecycle === 'READY_TO_SHIP'
+                );
+
+                // Rouge pour aujourd'hui ou dans le passé, gris pour le reste
+                const sectionColor =
+                  daysUntil <= 0 ? 'text-red-700' : 'text-gray-700';
+
+                // Check if this is today's section
+                const isToday = daysUntil === 0;
+
+                return (
+                  <div key={dateKey} className='space-y-2'>
+                    <div className='flex items-center justify-between py-2'>
+                      {/* Groupe gauche : Bouton + Titre (collés) */}
+                      <div className='flex items-center gap-2'>
+                        <p
+                          className={`font-semibold text-[14px] ${sectionColor}`}
+                        >
+                          {getSectionDateLabel(
+                            date,
+                            daysUntil,
+                            allOrdersShipped
+                          )}
+                        </p>
+                        {/* "Voir précédents" button - only for today's section */}
+                        {isToday && (
+                          <button
+                            onClick={() => setShowPastOrders(!showPastOrders)}
+                            className='flex items-center gap-2 text-[#12895a] -ml-2 px-2 py-1 hover:bg-gray-100 rounded transition-all'
+                          >
+                            <span className='text-[12px] font-semibold'>
+                              {showPastOrders ? 'Masquer' : 'Voir précédents'}
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                      {/* Badge à droite */}
+                      <span className='text-[12px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0'>
+                        {dayOrders.length}
+                      </span>
+                    </div>
+                    <div className='space-y-2 pl-2'>
+                      {dayOrders.map((unifiedOrder, index) => {
+                        // Inject projected stock status if projection mode is active
+                        const specificStockStatus: StockStatus | undefined =
+                          isProjectedMode && projectedStatuses
+                            ? projectedStatuses.get(unifiedOrder.id)
+                            : undefined;
+
+                        // Check if this order has products that first go out of stock
+                        const firstStockoutsInThisOrder =
+                          isProjectedMode && firstStockoutProducts
+                            ? firstStockoutProducts.get(unifiedOrder.id)
+                            : null;
+
+                        return (
+                          <div key={unifiedOrder.id}>
+                            {/* UX: Stock Out Divider - grouped products that first go out of stock */}
+                            {firstStockoutsInThisOrder &&
+                              firstStockoutsInThisOrder.size > 0 && (
+                                <StockOutDivider
+                                  key={`${unifiedOrder.id}-stockout`}
+                                  unifiedOrder={unifiedOrder}
+                                  productIds={Array.from(
+                                    firstStockoutsInThisOrder
+                                  )}
+                                />
+                              )}
+
+                            <OrderCard
+                              unifiedOrder={{
+                                ...unifiedOrder,
+                                // Override stockStatus with projected status if available
+                                stockStatus:
+                                  specificStockStatus ||
+                                  unifiedOrder.stockStatus,
+                              }}
+                              today={today}
+                              onClick={onOrderClick}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
           )
         ) : // Legacy view
         sortedDates.length === 0 ? (
@@ -439,6 +512,16 @@ export default function OrdersListView({
             const dayOrders = grouped[dateKey];
             const daysUntil = getDaysUntil(date, today);
 
+            // Vérifier si toutes les commandes de ce groupe sont expédiées/terminées (legacy orders)
+            const allOrdersShipped = dayOrders.every(
+              (order) =>
+                order.status === 'Expédié' ||
+                order.status === 'Facturé' ||
+                order.status === 'Livré' ||
+                order.status === 'SHIPPED' ||
+                order.status === 'INVOICED'
+            );
+
             // Rouge pour aujourd'hui ou dans le passé, gris pour le reste
             const sectionColor =
               daysUntil <= 0 ? 'text-red-700' : 'text-gray-700';
@@ -449,7 +532,7 @@ export default function OrdersListView({
                   <p
                     className={`font-semibold text-[14px] ${sectionColor} flex-1`}
                   >
-                    {getSectionDateLabel(date, daysUntil)}
+                    {getSectionDateLabel(date, daysUntil, allOrdersShipped)}
                   </p>
                   <span className='text-[12px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full'>
                     {dayOrders.length}

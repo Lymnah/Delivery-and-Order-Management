@@ -505,7 +505,7 @@ function initializeDemoData() {
 
   // ===== Past orders (1 per day for the last 15 days) =====
   // Create SHIPPED or INVOICED orders in the past to test "Voir précédents" functionality
-  const clients = ['Carrefour', 'Auchan', 'Leclerc'];
+  const pastClients = ['Carrefour', 'Auchan', 'Leclerc'];
   const productsForPastOrders = [
     { productId: '1', quantity: 50 },
     { productId: '2', quantity: 75 },
@@ -514,8 +514,8 @@ function initializeDemoData() {
 
   for (let i = 1; i <= 15; i++) {
     const pastDate = addDays(today, -i);
-    const client = clients[i % clients.length];
-    const items = [
+    const client = pastClients[i % pastClients.length];
+    const orderItems = [
       productsForPastOrders[i % productsForPastOrders.length],
       productsForPastOrders[(i + 1) % productsForPastOrders.length],
     ];
@@ -526,15 +526,21 @@ function initializeDemoData() {
       number: `BC-2025-PAST-${String(i).padStart(3, '0')}`,
       client: client,
       deliveryDate: pastDate,
-      items: items,
+      items: orderItems,
       createdAt: addDays(pastDate, -Math.floor(Math.random() * 5) - 1),
-      totalHT: items.reduce((sum, item) => sum + item.quantity * 10, 0),
+      totalHT: orderItems.reduce((sum, item) => sum + item.quantity * 10, 0),
       status: i <= 5 ? 'SHIPPED' : 'INVOICED', // First 5 days: SHIPPED, rest: INVOICED
     };
 
     salesOrders.push(pastBC);
 
     // Create corresponding BL for shipped/invoiced orders
+    // Convert OrderItem[] to DeliveryNoteLine[]
+    const deliveryNoteLines = orderItems.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+    }));
+
     const pastBL: DeliveryNote = {
       deliveryNoteId: `BL-PAST-${String(i).padStart(3, '0')}`,
       pickingTaskId: `BP-PAST-${String(i).padStart(3, '0')}`, // Reference to a past BP
@@ -542,8 +548,8 @@ function initializeDemoData() {
       client: client,
       deliveryDate: pastDate,
       status: i <= 5 ? 'SHIPPED' : 'INVOICED',
-      lines: items,
-      scannedLots: items.map((item) => ({
+      lines: deliveryNoteLines,
+      scannedLots: orderItems.map((item) => ({
         productId: item.productId,
         lotNumber: `LOT-PAST-${i}-${item.productId}`,
         quantity: item.quantity,

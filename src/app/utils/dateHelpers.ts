@@ -58,13 +58,24 @@ export const getRelativeDateLabel = (
 
 /**
  * Format a complete section date label (e.g., "Vendredi 19.12.25 (Dans 1j)")
+ * @param hideDelayIfShipped - If true and daysUntil < 0, don't show delay label (for shipped/invoiced orders)
  */
-export const getSectionDateLabel = (date: Date, daysUntil: number) => {
+export const getSectionDateLabel = (
+  date: Date,
+  daysUntil: number,
+  hideDelayIfShipped: boolean = false
+) => {
   const dayName = format(date, 'EEEE', { locale: fr });
   const dayNameCapitalized =
     dayName.charAt(0).toUpperCase() + dayName.slice(1);
   const dateShort = format(date, 'dd.MM.yy', { locale: fr });
-  const dateLabel = getShortDateLabel(daysUntil);
+  
+  // Si hideDelayIfShipped est true et qu'on est en retard, ne pas afficher le retard
+  const dateLabel =
+    hideDelayIfShipped && daysUntil < 0
+      ? ''
+      : getShortDateLabel(daysUntil);
+      
   return `${dayNameCapitalized} ${dateShort} ${dateLabel}`;
 };
 
