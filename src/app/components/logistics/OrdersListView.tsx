@@ -417,8 +417,9 @@ export default function OrdersListView({
                 const sectionColor =
                   daysUntil <= 0 ? 'text-red-700' : 'text-gray-700';
 
-                // Check if this is today's section
-                const isToday = daysUntil === 0;
+                // Check if this is the first section in the list
+                const isFirstSection =
+                  sortedUnifiedDates.indexOf(dateKey) === 0;
 
                 return (
                   <div key={dateKey} className='space-y-2'>
@@ -434,8 +435,8 @@ export default function OrdersListView({
                             allOrdersShipped
                           )}
                         </p>
-                        {/* "Voir précédents" button - only for today's section */}
-                        {isToday && (
+                        {/* "Voir précédents" button - only for first section */}
+                        {isFirstSection && (
                           <button
                             onClick={() => setShowPastOrders(!showPastOrders)}
                             className='flex items-center gap-2 text-[#12895a] -ml-2 px-2 py-1 hover:bg-gray-100 rounded transition-all'

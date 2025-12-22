@@ -5,7 +5,10 @@ import type {
   DocumentType,
 } from '../../data/database';
 
-export type OrderStatus = SalesOrderStatus | DeliveryNoteStatus | PickingTaskStatus;
+export type OrderStatus =
+  | SalesOrderStatus
+  | DeliveryNoteStatus
+  | PickingTaskStatus;
 
 /**
  * French translation for SalesOrderStatus
@@ -13,7 +16,7 @@ export type OrderStatus = SalesOrderStatus | DeliveryNoteStatus | PickingTaskSta
 export function getSalesOrderStatusLabelFr(status: SalesOrderStatus): string {
   switch (status) {
     case 'DRAFT':
-      return 'Brouillon';
+      return 'Non confirmé';
     case 'CONFIRMED':
       return 'Confirmé';
     case 'IN_PREPARATION':
@@ -39,9 +42,9 @@ export function getPickingTaskStatusLabelFr(status: PickingTaskStatus): string {
     case 'PENDING':
       return 'En attente';
     case 'IN_PROGRESS':
-      return 'En préparation';
+      return 'En prépa';
     case 'COMPLETED':
-      return 'Préparation terminée';
+      return 'Terminé';
     case 'CANCELLED':
       return 'Annulé';
     default:
@@ -52,10 +55,12 @@ export function getPickingTaskStatusLabelFr(status: PickingTaskStatus): string {
 /**
  * French translation for DeliveryNoteStatus
  */
-export function getDeliveryNoteStatusLabelFr(status: DeliveryNoteStatus): string {
+export function getDeliveryNoteStatusLabelFr(
+  status: DeliveryNoteStatus
+): string {
   switch (status) {
     case 'DRAFT':
-      return 'Bon de livraison prêt';
+      return 'Brouillon';
     case 'SHIPPED':
       return 'Expédié';
     case 'SIGNED':
@@ -102,7 +107,9 @@ function isPickingTaskStatus(status: OrderStatus): status is PickingTaskStatus {
   );
 }
 
-function isDeliveryNoteStatus(status: OrderStatus): status is DeliveryNoteStatus {
+function isDeliveryNoteStatus(
+  status: OrderStatus
+): status is DeliveryNoteStatus {
   return ['DRAFT', 'SHIPPED', 'SIGNED', 'INVOICED'].includes(
     status as DeliveryNoteStatus
   );
@@ -116,9 +123,10 @@ function isDeliveryNoteStatus(status: OrderStatus): status is DeliveryNoteStatus
  * - Info (blue): CONFIRMED, SHIPPED (BL)
  * - Danger (red): CANCELLED
  */
-export function getStatusBadgeColor(
-  status: OrderStatus
-): { bg: string; text: string } {
+export function getStatusBadgeColor(status: OrderStatus): {
+  bg: string;
+  text: string;
+} {
   switch (status) {
     // Neutral (gray)
     case 'DRAFT':
@@ -195,9 +203,7 @@ export function canTransitionStatus(
       CANCELLED: [], // Terminal state
     };
 
-    return (
-      validTransitions[currentStatus]?.includes(newStatus) ?? false
-    );
+    return validTransitions[currentStatus]?.includes(newStatus) ?? false;
   }
 
   // BP (Picking Task) transitions
@@ -209,9 +215,7 @@ export function canTransitionStatus(
       CANCELLED: [], // Terminal state
     };
 
-    return (
-      validTransitions[currentStatus]?.includes(newStatus) ?? false
-    );
+    return validTransitions[currentStatus]?.includes(newStatus) ?? false;
   }
 
   // BL (Delivery Note) transitions
@@ -223,9 +227,7 @@ export function canTransitionStatus(
       INVOICED: [], // Terminal state
     };
 
-    return (
-      validTransitions[currentStatus]?.includes(newStatus) ?? false
-    );
+    return validTransitions[currentStatus]?.includes(newStatus) ?? false;
   }
 
   return false;
@@ -302,9 +304,12 @@ export function canCancelOrder(
 ): boolean {
   // BC (Sales Order) can be cancelled before SHIPPED
   if (isSalesOrderStatus(status)) {
-    return ['DRAFT', 'CONFIRMED', 'IN_PREPARATION', 'PARTIALLY_SHIPPED'].includes(
-      status
-    );
+    return [
+      'DRAFT',
+      'CONFIRMED',
+      'IN_PREPARATION',
+      'PARTIALLY_SHIPPED',
+    ].includes(status);
   }
 
   // BP (Picking Task) can be cancelled before COMPLETED
@@ -319,4 +324,3 @@ export function canCancelOrder(
 
   return false;
 }
-

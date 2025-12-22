@@ -1,10 +1,18 @@
 import React, { useMemo } from 'react';
-import { ChevronLeft, Package, Plus, Play, Eye } from 'lucide-react';
+import {
+  ChevronLeft,
+  Package,
+  Plus,
+  Play,
+  Eye,
+  CheckCircle2,
+} from 'lucide-react';
 import {
   products,
   clientLogos,
   getRemainingQuantities,
   getPickingTasksBySalesOrder,
+  confirmSalesOrder,
   type SalesOrder,
   type Order,
   type DeliveryNoteStatus,
@@ -92,9 +100,7 @@ export default function OrderDetailsPage({
   if (!effectiveSalesOrder && !isLegacyBL) {
     return (
       <div className='flex flex-col h-full min-h-0 items-center justify-center p-4'>
-        <p className='text-red-600 font-semibold mb-2'>
-          Accès non autorisé
-        </p>
+        <p className='text-red-600 font-semibold mb-2'>Accès non autorisé</p>
         <p className='text-gray-600 text-sm text-center mb-4'>
           Type de document non supporté par ce module.
         </p>
@@ -151,9 +157,9 @@ export default function OrderDetailsPage({
   // Get active picking tasks for SalesOrder
   const activePickingTasks = useMemo(() => {
     if (effectiveSalesOrder) {
-      return getPickingTasksBySalesOrder(effectiveSalesOrder.salesOrderId).filter(
-        (pt) => pt.status === 'PENDING' || pt.status === 'IN_PROGRESS'
-      );
+      return getPickingTasksBySalesOrder(
+        effectiveSalesOrder.salesOrderId
+      ).filter((pt) => pt.status === 'PENDING' || pt.status === 'IN_PROGRESS');
     }
     return [];
   }, [effectiveSalesOrder]);
@@ -173,6 +179,23 @@ export default function OrderDetailsPage({
   };
 
   // Handle BC actions
+  const handleConfirmSalesOrder = () => {
+    if (effectiveSalesOrder && effectiveSalesOrder.status === 'DRAFT') {
+      try {
+        confirmSalesOrder(effectiveSalesOrder.salesOrderId);
+        // Update status in parent component
+        if (onStatusUpdate) {
+          onStatusUpdate(effectiveSalesOrder.salesOrderId, 'CONFIRMED');
+        }
+        // Force re-render by updating the effectiveSalesOrder
+        // The component will re-render and show the "Créer un BP" button
+      } catch (error) {
+        console.error('Error confirming sales order:', error);
+        // TODO: Show error toast/alert to user
+      }
+    }
+  };
+
   const handleCreatePickingTask = () => {
     if (effectiveSalesOrder && onCreatePickingTask) {
       onCreatePickingTask(effectiveSalesOrder.salesOrderId);
@@ -180,7 +203,11 @@ export default function OrderDetailsPage({
   };
 
   const handleViewPickingTask = () => {
-    if (effectiveSalesOrder && activePickingTasks.length > 0 && onViewPickingTask) {
+    if (
+      effectiveSalesOrder &&
+      activePickingTasks.length > 0 &&
+      onViewPickingTask
+    ) {
       // If multiple active BP, take the first one (could be improved with selector)
       onViewPickingTask(activePickingTasks[0].pickingTaskId);
     }
@@ -234,7 +261,9 @@ export default function OrderDetailsPage({
         {/* Order Header */}
         <OrderHeader
           client={orderData.client}
-          documentNumber={`${orderData.number} • ${effectiveSalesOrder ? 'BC' : legacyOrder!.type}`}
+          documentNumber={`${orderData.number} • ${
+            effectiveSalesOrder ? 'BC' : legacyOrder!.type
+          }`}
           statusBadge={{
             label: statusLabel,
             bgColor: statusColors.bg,
@@ -261,8 +290,8 @@ export default function OrderDetailsPage({
                         key={rq.productId}
                         className='text-[9px] text-blue-600 leading-tight'
                       >
-                        {product.name}: {rq.ordered} u commandé, {rq.delivered} u
-                        livré, {rq.remaining} u restant
+                        {product.name}: {rq.ordered} u commandé, {rq.delivered}{' '}
+                        u livré, {rq.remaining} u restant
                       </p>
                     );
                   })}
@@ -303,12 +332,13 @@ export default function OrderDetailsPage({
           {/* En stock section */}
           {(() => {
             // For SalesOrder, use remaining quantities if available, otherwise use items
-            const itemsToDisplay = effectiveSalesOrder && remainingQuantities
-              ? remainingQuantities.map((rq) => ({
-                  productId: rq.productId,
-                  quantity: rq.remaining > 0 ? rq.remaining : rq.ordered,
-                }))
-              : orderItems;
+            const itemsToDisplay =
+              effectiveSalesOrder && remainingQuantities
+                ? remainingQuantities.map((rq) => ({
+                    productId: rq.productId,
+                    quantity: rq.remaining > 0 ? rq.remaining : rq.ordered,
+                  }))
+                : orderItems;
 
             const inStockItems = itemsToDisplay.filter((item) => {
               const product = products.find((p) => p.id === item.productId);
@@ -348,12 +378,13 @@ export default function OrderDetailsPage({
           {/* Hors stock section */}
           {(() => {
             // For SalesOrder, use remaining quantities if available
-            const itemsToDisplay = effectiveSalesOrder && remainingQuantities
-              ? remainingQuantities.map((rq) => ({
-                  productId: rq.productId,
-                  quantity: rq.remaining > 0 ? rq.remaining : rq.ordered,
-                }))
-              : orderItems;
+            const itemsToDisplay =
+              effectiveSalesOrder && remainingQuantities
+                ? remainingQuantities.map((rq) => ({
+                    productId: rq.productId,
+                    quantity: rq.remaining > 0 ? rq.remaining : rq.ordered,
+                  }))
+                : orderItems;
 
             const outOfStockItems = itemsToDisplay.filter((item) => {
               const product = products.find((p) => p.id === item.productId);
@@ -422,6 +453,17 @@ export default function OrderDetailsPage({
         {/* ===== SalesOrder (BC) Actions ===== */}
         {effectiveSalesOrder && (
           <>
+            {/* BC DRAFT: Confirm order */}
+            {effectiveSalesOrder.status === 'DRAFT' && !isReadOnly && (
+              <button
+                onClick={handleConfirmSalesOrder}
+                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
+              >
+                <CheckCircle2 className='w-4 h-4' />
+                Confirmer la commande
+              </button>
+            )}
+
             {/* BC CONFIRMED: Create BP and prepare */}
             {effectiveSalesOrder.status === 'CONFIRMED' && !isReadOnly && (
               <button

@@ -11,9 +11,22 @@ import {
   ShoppingBasket,
 } from 'lucide-react';
 import { clientLogos, products } from '../../../data/database';
-import type { Order, UnifiedOrder, StockStatus } from '../../../data/database';
+import type {
+  Order,
+  UnifiedOrder,
+  StockStatus,
+  SalesOrder,
+  PickingTask,
+  DeliveryNote,
+} from '../../../data/database';
 import { getDaysUntil, getRelativeDateLabel } from '../../utils/dateHelpers';
 import { calculateStockStatus } from '../../utils/unifiedOrderHelpers';
+import {
+  getSalesOrderStatusLabelFr,
+  getPickingTaskStatusLabelFr,
+  getDeliveryNoteStatusLabelFr,
+  getStatusBadgeColor,
+} from '../../utils/statusHelpers';
 
 interface OrderCardProps {
   order?: Order;
@@ -64,27 +77,81 @@ export default function OrderCard({
   };
   const productPreviews = getProductPreviews();
 
-  // --- 2. LOGIQUE VISUELLE (State Machine) ---
+  // --- 2. GET REAL STATUS FROM ORIGINAL DATA ---
+  const getRealStatus = (): { label: string; status: string } => {
+    if (isUnified && unifiedOrder) {
+      const originalData = unifiedOrder.originalData;
+
+      // Check if it's a SalesOrder (has salesOrderId property)
+      if (
+        'salesOrderId' in originalData &&
+        !('pickingTaskId' in originalData) &&
+        !('deliveryNoteId' in originalData)
+      ) {
+        const salesOrder = originalData as unknown as SalesOrder;
+        return {
+          label: getSalesOrderStatusLabelFr(salesOrder.status),
+          status: salesOrder.status,
+        };
+      }
+
+      // Check if it's a PickingTask (has pickingTaskId property)
+      if (
+        'pickingTaskId' in originalData &&
+        !('deliveryNoteId' in originalData)
+      ) {
+        const pickingTask = originalData as unknown as PickingTask;
+        return {
+          label: getPickingTaskStatusLabelFr(pickingTask.status),
+          status: pickingTask.status,
+        };
+      }
+
+      // Check if it's a DeliveryNote (has deliveryNoteId property)
+      if ('deliveryNoteId' in originalData) {
+        const deliveryNote = originalData as unknown as DeliveryNote;
+        return {
+          label: getDeliveryNoteStatusLabelFr(deliveryNote.status),
+          status: deliveryNote.status,
+        };
+      }
+    }
+
+    // Fallback for legacy orders
+    if (order) {
+      return {
+        label: order.status as string,
+        status: order.status as string,
+      };
+    }
+
+    return { label: 'Inconnu', status: 'UNKNOWN' };
+  };
+
+  const realStatus = getRealStatus();
+  const statusColors = getStatusBadgeColor(realStatus.status as any);
+
+  // --- 3. LOGIQUE VISUELLE (State Machine) ---
   const getVisualState = () => {
     if (isUnified && unifiedOrder) {
       switch (unifiedOrder.lifecycle) {
         case 'TO_PREPARE':
           return {
             borderLeft: 'border-l-blue-500',
-            badgeBg: 'bg-blue-100',
-            badgeText: 'text-blue-700', // Couleur du texte principal
+            badgeBg: statusColors.bg,
+            badgeText: statusColors.text,
             icon: Clock,
-            statusLabel: 'À préparer',
+            statusLabel: realStatus.label, // Use real status
             showStock: true,
             docFullLabel: 'Bon de commande', // Texte clair
           };
         case 'IN_PREPARATION':
           return {
             borderLeft: 'border-l-orange-500',
-            badgeBg: 'bg-orange-100',
-            badgeText: 'text-orange-700',
+            badgeBg: statusColors.bg,
+            badgeText: statusColors.text,
             icon: Package,
-            statusLabel: 'En Prépa',
+            statusLabel: realStatus.label, // Use real status
             showProgress: true,
             docFullLabel: 'Bon de préparation', // Texte clair
           };
@@ -92,21 +159,20 @@ export default function OrderCard({
         case 'SHIPPED':
           return {
             borderLeft: 'border-l-green-500',
-            badgeBg: 'bg-green-100',
-            badgeText: 'text-green-700',
+            badgeBg: statusColors.bg,
+            badgeText: statusColors.text,
             icon: Truck,
-            statusLabel:
-              unifiedOrder.lifecycle === 'SHIPPED' ? 'Expédié' : 'Prêt',
+            statusLabel: realStatus.label, // Use real status
             showShipping: true,
             docFullLabel: 'Bon de livraison', // Texte clair
           };
         default:
           return {
             borderLeft: 'border-l-gray-300',
-            badgeBg: 'bg-gray-100',
-            badgeText: 'text-gray-600',
+            badgeBg: statusColors.bg,
+            badgeText: statusColors.text,
             icon: CheckCircle2,
-            statusLabel: 'Terminé',
+            statusLabel: realStatus.label, // Use real status
             docFullLabel: 'Document',
           };
       }
