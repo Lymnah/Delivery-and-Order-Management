@@ -137,7 +137,8 @@ export default function ProductCard({
           </div>
 
           {/* Right badge: Documents (normal mode) or nothing (manufacturing mode) */}
-          {!manufacturingMode && (
+          {/* Hide badge if there's only one order (we're in order details page) */}
+          {!manufacturingMode && orders.length > 1 && (
             <div className='text-right flex-shrink-0'>
               <button
                 onClick={onDocumentsClick || onCardClick}

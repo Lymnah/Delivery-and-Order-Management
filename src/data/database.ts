@@ -111,7 +111,7 @@ export const orders: Order[] = [
   // ===== 1 COMMANDE AUJOURD'HUI =====
   {
     id: '1',
-    number: 'BC-2024-001',
+    number: 'BC-2025-001',
     type: 'BC',
     client: 'Carrefour',
     deliveryDate: INITIAL_NOW, // Aujourd'hui
@@ -127,7 +127,7 @@ export const orders: Order[] = [
   // ===== 4 AUTRES COMMANDES CETTE SEMAINE (total 5 avec celle d'aujourd'hui) =====
   {
     id: '2',
-    number: 'BL-2024-045',
+    number: 'BL-2025-045',
     type: 'BL',
     client: 'Auchan',
     deliveryDate: addDays(INITIAL_NOW, 1), // Demain
@@ -135,13 +135,13 @@ export const orders: Order[] = [
     items: [
       { productId: '1', quantity: 80 },
       { productId: '2', quantity: 120 },
-      { productId: '4', quantity: 90 },
+      { productId: '4', quantity: 1000 },
     ],
     totalHT: 2000,
   },
   {
     id: '3',
-    number: 'BC-2024-002',
+    number: 'BC-2025-002',
     type: 'BC',
     client: 'Leclerc',
     deliveryDate: addDays(INITIAL_NOW, 2), // Dans 2 jours
@@ -155,7 +155,7 @@ export const orders: Order[] = [
   },
   {
     id: '4',
-    number: 'BC-2024-003',
+    number: 'BC-2025-003',
     type: 'BC',
     client: 'Auchan',
     deliveryDate: addDays(INITIAL_NOW, 3), // Dans 3 jours
@@ -169,7 +169,7 @@ export const orders: Order[] = [
   },
   {
     id: '5',
-    number: 'BC-2024-004',
+    number: 'BC-2025-004',
     type: 'BC',
     client: 'Carrefour',
     deliveryDate: addDays(INITIAL_NOW, 5), // Dans 5 jours
@@ -185,7 +185,7 @@ export const orders: Order[] = [
   // ===== 10 AUTRES COMMANDES DANS LE MOIS (total 15 avec celles de cette semaine) =====
   {
     id: '6',
-    number: 'BC-2024-005',
+    number: 'BC-2025-005',
     type: 'BC',
     client: 'Leclerc',
     deliveryDate: addDays(INITIAL_NOW, 8), // Dans 8 jours
@@ -199,7 +199,7 @@ export const orders: Order[] = [
   },
   {
     id: '7',
-    number: 'BC-2024-006',
+    number: 'BC-2025-006',
     type: 'BC',
     client: 'Auchan',
     deliveryDate: addDays(INITIAL_NOW, 10), // Dans 10 jours
@@ -213,7 +213,7 @@ export const orders: Order[] = [
   },
   {
     id: '8',
-    number: 'BL-2024-046',
+    number: 'BL-2025-046',
     type: 'BL',
     client: 'Carrefour',
     deliveryDate: addDays(INITIAL_NOW, 12), // Dans 12 jours
@@ -227,7 +227,7 @@ export const orders: Order[] = [
   },
   {
     id: '9',
-    number: 'BL-2024-047',
+    number: 'BL-2025-047',
     type: 'BL',
     client: 'Leclerc',
     deliveryDate: addDays(INITIAL_NOW, 15), // Dans 15 jours
@@ -241,7 +241,7 @@ export const orders: Order[] = [
   },
   {
     id: '10',
-    number: 'BC-2024-007',
+    number: 'BC-2025-007',
     type: 'BC',
     client: 'Carrefour',
     deliveryDate: addDays(INITIAL_NOW, 18), // Dans 18 jours
@@ -255,7 +255,7 @@ export const orders: Order[] = [
   },
   {
     id: '11',
-    number: 'BL-2024-048',
+    number: 'BL-2025-048',
     type: 'BL',
     client: 'Auchan',
     deliveryDate: addDays(INITIAL_NOW, 20), // Dans 20 jours
@@ -269,7 +269,7 @@ export const orders: Order[] = [
   },
   {
     id: '12',
-    number: 'BC-2024-008',
+    number: 'BC-2025-008',
     type: 'BC',
     client: 'Leclerc',
     deliveryDate: addDays(INITIAL_NOW, 22), // Dans 22 jours
@@ -283,7 +283,7 @@ export const orders: Order[] = [
   },
   {
     id: '13',
-    number: 'BC-2024-009',
+    number: 'BC-2025-009',
     type: 'BC',
     client: 'Carrefour',
     deliveryDate: addDays(INITIAL_NOW, 25), // Dans 25 jours
@@ -297,7 +297,7 @@ export const orders: Order[] = [
   },
   {
     id: '14',
-    number: 'BL-2024-049',
+    number: 'BL-2025-049',
     type: 'BL',
     client: 'Auchan',
     deliveryDate: addDays(INITIAL_NOW, 27), // Dans 27 jours
@@ -311,7 +311,7 @@ export const orders: Order[] = [
   },
   {
     id: '15',
-    number: 'BC-2024-010',
+    number: 'BC-2025-010',
     type: 'BC',
     client: 'Leclerc',
     deliveryDate: addDays(INITIAL_NOW, 29), // Dans 29 jours (fin du mois)
@@ -327,7 +327,7 @@ export const orders: Order[] = [
   // ===== Commandes futures (après le mois) pour avoir un échantillon complet =====
   {
     id: '16',
-    number: 'BC-2024-011',
+    number: 'BC-2025-011',
     type: 'BC',
     client: 'Carrefour',
     deliveryDate: new Date(2026, 1, 15), // 15 février 2026
@@ -340,7 +340,7 @@ export const orders: Order[] = [
   },
   {
     id: '17',
-    number: 'BL-2024-050',
+    number: 'BL-2025-050',
     type: 'BL',
     client: 'Auchan',
     deliveryDate: new Date(2026, 2, 10), // 10 mars 2026
