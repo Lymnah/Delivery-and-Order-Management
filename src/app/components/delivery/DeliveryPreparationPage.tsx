@@ -127,7 +127,7 @@ export default function DeliveryPreparationPage({
     if (legacyOrder) {
       return getDeliveryPreparation(legacyOrder.id);
     }
-    return { scannedLots: [], status: 'DRAFT' };
+    return { scannedLots: [], status: 'READY_TO_SHIP' };
   });
 
   // Get order items (from PickingTask.lines or legacy Order.items)

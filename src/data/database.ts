@@ -39,7 +39,7 @@ export type PickingTaskStatus =
 
 // Delivery note statuses (BL - Bon de Livraison)
 export type DeliveryNoteStatus =
-  | 'DRAFT'
+  | 'READY_TO_SHIP'
   | 'SHIPPED'
   | 'SIGNED' // Optional V1
   | 'INVOICED';
@@ -477,7 +477,7 @@ function initializeDemoData() {
     number: 'BL-2025-001',
     client: 'Leclerc',
     deliveryDate: today,
-    status: 'DRAFT', // Prêt à expédier
+    status: 'READY_TO_SHIP', // Prêt à quai
     lines: [
       { productId: '3', quantity: 200 },
       { productId: '4', quantity: 50 },
@@ -759,7 +759,7 @@ function initializeDemoData() {
           ).padStart(3, '0')}`,
           client,
           deliveryDate: orderDate,
-          status: Math.random() < 0.5 ? 'DRAFT' : 'SHIPPED',
+          status: Math.random() < 0.5 ? 'READY_TO_SHIP' : 'SHIPPED',
           lines: items,
           scannedLots: completedPickingTask.scannedLots,
           createdAt: addDays(orderDate, -Math.floor(Math.random() * 3)),
@@ -990,11 +990,11 @@ export const getDeliveryPreparation = (
   orderId: string
 ): DeliveryPreparation => {
   if (!deliveryPreparations.has(orderId)) {
-    // Initialize with "DRAFT" status for new orders (legacy compatibility)
+    // Initialize with "READY_TO_SHIP" status for new orders (legacy compatibility)
     const order = orders.find((o) => o.id === orderId);
     deliveryPreparations.set(orderId, {
       orderId,
-      status: 'DRAFT', // Using new enum value
+      status: 'READY_TO_SHIP', // Using new enum value
       scannedLots: [],
     });
   }
@@ -1020,12 +1020,12 @@ export const resetProductLots = (productId: string): void => {
       deliveryPreparations.set(orderId, {
         ...prep,
         scannedLots: filteredLots,
-        // Reset status to "DRAFT" if no lots remain (legacy compatibility)
+        // Reset status to "READY_TO_SHIP" if no lots remain (legacy compatibility)
         status:
           filteredLots.length === 0
-            ? 'DRAFT'
+            ? 'READY_TO_SHIP'
             : prep.status === 'SHIPPED'
-            ? 'DRAFT' // Using new enum value
+            ? 'READY_TO_SHIP' // Using new enum value
             : prep.status,
       });
     }
@@ -1240,7 +1240,7 @@ export const createDeliveryNoteFromPickingTask = (
     number: `BL-${Date.now()}`,
     client: salesOrder.client,
     deliveryDate: salesOrder.deliveryDate,
-    status: 'DRAFT',
+    status: 'READY_TO_SHIP',
     lines: Array.from(actualQuantities.entries()).map(
       ([productId, quantity]) => ({
         productId,
@@ -1259,7 +1259,7 @@ export const shipDeliveryNote = (deliveryNoteId: string): void => {
   const deliveryNote = deliveryNotes.find(
     (dn) => dn.deliveryNoteId === deliveryNoteId
   );
-  if (deliveryNote && deliveryNote.status === 'DRAFT') {
+  if (deliveryNote && deliveryNote.status === 'READY_TO_SHIP') {
     deliveryNote.status = 'SHIPPED';
     deliveryNote.shippedAt = new Date();
     // TODO: Decrement physical stock (inventory movement)

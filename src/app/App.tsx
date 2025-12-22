@@ -122,6 +122,8 @@ export default function App() {
     useState<PickingTask | null>(null);
   const [selectedSalesOrder, setSelectedSalesOrder] =
     useState<SalesOrder | null>(null);
+  const [selectedDeliveryNote, setSelectedDeliveryNote] =
+    useState<DeliveryNote | null>(null);
   const [currentDate, setCurrentDate] = useState(addDays(now, 7));
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [showPeriodSelector, setShowPeriodSelector] = useState(false);
@@ -234,13 +236,29 @@ export default function App() {
     newStatus: DeliveryNoteStatus | SalesOrderStatus | PickingTaskStatus
   ) => {
     // For legacy Order, use updateOrderStatus
-    // For new types (SalesOrder, PickingTask), status is managed by backend functions
+    // For new types (SalesOrder, PickingTask, DeliveryNote), status is managed by backend functions
     if (selectedOrder && selectedOrder.id === orderId) {
       updateOrderStatus(orderId, newStatus as any);
       setSelectedOrder({
         ...selectedOrder,
         status: newStatus as any,
       });
+    }
+    // Update selectedDeliveryNote if it's the same
+    if (
+      selectedDeliveryNote &&
+      selectedDeliveryNote.deliveryNoteId === orderId
+    ) {
+      // Fetch updated DeliveryNote from database (backend functions already updated it)
+      const updatedDeliveryNote = getDeliveryNote(orderId);
+      if (updatedDeliveryNote) {
+        setSelectedDeliveryNote(updatedDeliveryNote);
+        // Also update legacy Order for backward compatibility
+        setSelectedOrder({
+          ...selectedOrder!,
+          status: newStatus as any,
+        });
+      }
     }
     // Update selectedSalesOrder if it's the same
     if (selectedSalesOrder && selectedSalesOrder.salesOrderId === orderId) {
@@ -420,6 +438,9 @@ export default function App() {
     } else if (unifiedOrder.sourceType === 'BL') {
       const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
       if (deliveryNote) {
+        // Store DeliveryNote directly
+        setSelectedDeliveryNote(deliveryNote);
+        // Also keep legacy Order for backward compatibility if needed
         const convertedOrder: Order = {
           id: deliveryNote.deliveryNoteId,
           number: deliveryNote.number,
@@ -519,10 +540,12 @@ export default function App() {
                 // After validation, navigate to delivery note details page
                 // The BL was created automatically by completePickingTask()
                 if (deliveryNoteId) {
-                  // Get the created DeliveryNote and convert it to Order for display
+                  // Get the created DeliveryNote
                   const deliveryNote = getDeliveryNote(deliveryNoteId);
                   if (deliveryNote) {
-                    // Convert DeliveryNote to Order format for DeliveryNoteDetailsPage
+                    // Store DeliveryNote directly
+                    setSelectedDeliveryNote(deliveryNote);
+                    // Also keep legacy Order for backward compatibility
                     const orderFromDeliveryNote: Order = {
                       id: deliveryNote.deliveryNoteId,
                       number: deliveryNote.number,
@@ -639,6 +662,9 @@ export default function App() {
                   if (deliveryNoteId) {
                     const deliveryNote = getDeliveryNote(deliveryNoteId);
                     if (deliveryNote) {
+                      // Store DeliveryNote directly
+                      setSelectedDeliveryNote(deliveryNote);
+                      // Also keep legacy Order for backward compatibility
                       const orderFromDeliveryNote: Order = {
                         id: deliveryNote.deliveryNoteId,
                         number: deliveryNote.number,
@@ -675,14 +701,25 @@ export default function App() {
               />
             ) : mode === 'clients' &&
               showDeliveryNoteDetails &&
-              selectedOrder ? (
+              (selectedDeliveryNote || selectedOrder) ? (
               <DeliveryNoteDetailsPage
-                order={selectedOrder}
+                deliveryNote={selectedDeliveryNote || undefined}
+                order={
+                  selectedDeliveryNote ? undefined : selectedOrder || undefined
+                }
+                deliveryNoteId={
+                  selectedDeliveryNote?.deliveryNoteId || selectedOrder?.id
+                }
                 onBack={() => {
                   setShowDeliveryNoteDetails(false);
+                  setSelectedDeliveryNote(null);
                   setSelectedOrder(null);
                 }}
                 onStatusUpdate={handleStatusUpdate}
+                onViewPickingTask={(pickingTaskId) => {
+                  handleViewPickingTask(pickingTaskId);
+                }}
+                onViewSalesOrder={handleViewSalesOrder}
               />
             ) : (
               <>
@@ -1103,14 +1140,25 @@ export default function App() {
               />
             ) : mode === 'clients' &&
               showDeliveryNoteDetails &&
-              selectedOrder ? (
+              (selectedDeliveryNote || selectedOrder) ? (
               <DeliveryNoteDetailsPage
-                order={selectedOrder}
+                deliveryNote={selectedDeliveryNote || undefined}
+                order={
+                  selectedDeliveryNote ? undefined : selectedOrder || undefined
+                }
+                deliveryNoteId={
+                  selectedDeliveryNote?.deliveryNoteId || selectedOrder?.id
+                }
                 onBack={() => {
                   setShowDeliveryNoteDetails(false);
+                  setSelectedDeliveryNote(null);
                   setSelectedOrder(null);
                 }}
                 onStatusUpdate={handleStatusUpdate}
+                onViewPickingTask={(pickingTaskId) => {
+                  handleViewPickingTask(pickingTaskId);
+                }}
+                onViewSalesOrder={handleViewSalesOrder}
               />
             ) : null}
 

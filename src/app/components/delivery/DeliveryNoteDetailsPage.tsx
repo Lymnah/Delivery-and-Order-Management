@@ -1,32 +1,73 @@
-import React from 'react';
-import { ChevronLeft, Package, FileText, CheckCircle2, Printer } from 'lucide-react';
+import React, { useMemo } from 'react';
+import {
+  ChevronLeft,
+  Package,
+  FileText,
+  Printer,
+  Truck,
+  CheckCircle2,
+} from 'lucide-react';
 import {
   products,
-  getDeliveryPreparation,
+  getDeliveryNote,
+  shipDeliveryNote,
+  invoiceDeliveryNote,
+  type Order,
+  type DeliveryNote,
+  type DeliveryNoteStatus,
 } from '../../../data/database';
-import type { Order, DeliveryNoteStatus } from '../../../data/database';
-import { getStatusBadgeColor, getStatusLabel } from '../../utils/statusHelpers';
-import ProductCardCompact from '../ProductCardCompact';
+import {
+  getStatusBadgeColor,
+  getDeliveryNoteStatusLabelFr,
+} from '../../utils/statusHelpers';
 import OrderHeader from './OrderHeader';
 
 interface DeliveryNoteDetailsPageProps {
-  order: Order;
+  deliveryNote?: DeliveryNote; // New: DeliveryNote (priority)
+  order?: Order; // Legacy: fallback for backward compatibility
+  deliveryNoteId?: string; // Alternative: fetch by ID
   onBack: () => void;
-  onStatusUpdate?: (orderId: string, newStatus: DeliveryNoteStatus) => void;
+  onStatusUpdate?: (
+    deliveryNoteId: string,
+    newStatus: DeliveryNoteStatus
+  ) => void;
+  onViewPickingTask?: (pickingTaskId: string) => void;
+  onViewSalesOrder?: (salesOrderId: string) => void;
 }
 
 export default function DeliveryNoteDetailsPage({
-  order,
+  deliveryNote: propDeliveryNote,
+  order: legacyOrder,
+  deliveryNoteId,
   onBack,
   onStatusUpdate,
+  onViewPickingTask,
+  onViewSalesOrder,
 }: DeliveryNoteDetailsPageProps) {
-  // Check if document type is valid (must be BL)
-  if (order.type !== 'BL') {
+  // Get DeliveryNote: priority order: prop > fetch by ID > convert from legacy Order
+  const effectiveDeliveryNote: DeliveryNote | null = useMemo(() => {
+    if (propDeliveryNote) return propDeliveryNote;
+    if (deliveryNoteId) {
+      const fetched = getDeliveryNote(deliveryNoteId);
+      if (fetched) return fetched;
+    }
+    // Legacy fallback: convert Order to DeliveryNote if possible
+    if (legacyOrder && legacyOrder.type === 'BL') {
+      // Try to find DeliveryNote by ID
+      const found = getDeliveryNote(legacyOrder.id);
+      if (found) return found;
+      // If not found, we'll use legacy Order structure
+    }
+    return null;
+  }, [propDeliveryNote, deliveryNoteId, legacyOrder]);
+
+  // Check if we have valid data
+  if (!effectiveDeliveryNote && !legacyOrder) {
     return (
       <div className='flex flex-col h-full min-h-0 items-center justify-center p-4'>
         <p className='text-red-600 font-semibold mb-2'>Accès non autorisé</p>
         <p className='text-gray-600 text-sm text-center mb-4'>
-          Cette page est uniquement accessible pour les bons de livraison (BL).
+          Bon de livraison introuvable.
         </p>
         <button
           onClick={onBack}
@@ -38,19 +79,34 @@ export default function DeliveryNoteDetailsPage({
     );
   }
 
-  const statusColors = getStatusBadgeColor(order.status);
-  const statusLabel = getStatusLabel(order.status);
-  const preparation = getDeliveryPreparation(order.id);
-  // Read-only for INVOICED, CANCELLED, or legacy statuses
-  const isReadOnly =
-    order.status === 'INVOICED' ||
-    order.status === 'CANCELLED' ||
-    order.status === 'Annulé' ||
-    order.status === 'Facturé';
+  // Use DeliveryNote if available, otherwise fallback to legacy Order
+  const displayData = effectiveDeliveryNote || {
+    deliveryNoteId: legacyOrder!.id,
+    number: legacyOrder!.number,
+    client: legacyOrder!.client,
+    deliveryDate: legacyOrder!.deliveryDate,
+    status: legacyOrder!.status as DeliveryNoteStatus,
+    lines: legacyOrder!.items.map((item) => ({
+      productId: item.productId,
+      quantity: item.quantity,
+    })),
+    scannedLots: [], // Legacy: would need to get from getDeliveryPreparation
+    createdAt: legacyOrder!.createdAt,
+    shippedAt: undefined,
+    invoicedAt: undefined,
+    pickingTaskId: '', // Unknown for legacy
+  };
+
+  // Use the helper functions directly - they now handle "Prêt à quai" correctly
+  const statusLabel = getDeliveryNoteStatusLabelFr(displayData.status);
+  const statusColors = getStatusBadgeColor(displayData.status, 'BL');
+
+  // Read-only for INVOICED only (terminal state)
+  const isReadOnly = displayData.status === 'INVOICED';
 
   // Get scanned lots summary for each product
   const getProductLotsSummary = (productId: string) => {
-    const productLots = preparation.scannedLots.filter(
+    const productLots = displayData.scannedLots.filter(
       (lot) => lot.productId === productId
     );
     const totalScanned = productLots.reduce(
@@ -64,11 +120,46 @@ export default function DeliveryNoteDetailsPage({
     };
   };
 
-  // Handle status transitions
-  const handleStatusTransition = (newStatus: DeliveryNoteStatus) => {
-    if (onStatusUpdate) {
-      onStatusUpdate(order.id, newStatus);
+  // Handle shipping (READY_TO_SHIP → SHIPPED)
+  const handleShipDelivery = () => {
+    if (displayData.status !== 'READY_TO_SHIP') return;
+
+    try {
+      shipDeliveryNote(displayData.deliveryNoteId);
+      // Update status in parent component
+      if (onStatusUpdate) {
+        onStatusUpdate(displayData.deliveryNoteId, 'SHIPPED');
+      }
+      // Force re-render by fetching updated delivery note
+      // The component will re-render and show SHIPPED status
+    } catch (error) {
+      console.error('Error shipping delivery note:', error);
+      // TODO: Show error toast/alert to user
     }
+  };
+
+  // Handle invoicing (SHIPPED → INVOICED)
+  const handleInvoiceDelivery = () => {
+    if (displayData.status !== 'SHIPPED' && displayData.status !== 'SIGNED') {
+      return;
+    }
+
+    try {
+      invoiceDeliveryNote(displayData.deliveryNoteId);
+      // Update status in parent component
+      if (onStatusUpdate) {
+        onStatusUpdate(displayData.deliveryNoteId, 'INVOICED');
+      }
+      // Force re-render by fetching updated delivery note
+    } catch (error) {
+      console.error('Error invoicing delivery note:', error);
+      // TODO: Show error toast/alert to user
+    }
+  };
+
+  // Handle print
+  const handlePrint = () => {
+    window.print();
   };
 
   return (
@@ -86,8 +177,8 @@ export default function DeliveryNoteDetailsPage({
 
         {/* Order Header */}
         <OrderHeader
-          client={order.client}
-          documentNumber={`${order.number} • ${order.type}`}
+          client={displayData.client}
+          documentNumber={`${displayData.number} • BL`}
           statusBadge={{
             label: statusLabel,
             bgColor: statusColors.bg,
@@ -99,21 +190,37 @@ export default function DeliveryNoteDetailsPage({
       {/* Scrollable Content */}
       <div className='flex-1 overflow-y-auto min-h-0'>
         <div className='space-y-4 p-4 pb-4'>
+          {/* Status Context Banner (for READY_TO_SHIP) */}
+          {displayData.status === 'READY_TO_SHIP' && (
+            <div className='bg-blue-50 border border-blue-100 rounded-lg p-3 flex gap-3 items-start'>
+              <Package className='w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0' />
+              <div>
+                <p className='text-[13px] font-semibold text-blue-800'>
+                  Commande préparée
+                </p>
+                <p className='text-[11px] text-blue-600 mt-0.5'>
+                  La marchandise est prête. Validez le départ une fois le camion
+                  chargé pour déstocker.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Products List */}
           <div>
             <h3 className='text-[12px] font-semibold text-gray-700 mb-2'>
-              Produits ({order.items.length})
+              Produits ({displayData.lines.length})
             </h3>
             <div className='space-y-2'>
-              {order.items.map((item) => {
-                const product = products.find((p) => p.id === item.productId);
+              {displayData.lines.map((line) => {
+                const product = products.find((p) => p.id === line.productId);
                 if (!product) return null;
 
-                const lotsSummary = getProductLotsSummary(item.productId);
+                const lotsSummary = getProductLotsSummary(line.productId);
 
                 return (
                   <div
-                    key={item.productId}
+                    key={line.productId}
                     className='border border-gray-300 rounded-lg p-3'
                   >
                     <div className='flex items-start gap-3 mb-2'>
@@ -133,7 +240,7 @@ export default function DeliveryNoteDetailsPage({
                           {product.name}
                         </p>
                         <p className='text-[11px] text-gray-600 mt-0.5'>
-                          Quantité requise: {item.quantity} u
+                          Quantité livrée: {line.quantity} u
                         </p>
                         {lotsSummary.lotCount > 0 && (
                           <p className='text-[11px] text-gray-600'>
@@ -170,39 +277,37 @@ export default function DeliveryNoteDetailsPage({
             </div>
           </div>
 
-          {/* Shipment Info Section (for Expédié and later) */}
-          {(order.status === 'Expédié' ||
-            order.status === 'Livré' ||
-            order.status === 'Facturé') && (
-            <div className='border border-gray-200 rounded-lg p-3 bg-gray-50'>
-              <h3 className='text-[12px] font-semibold text-gray-700 mb-2'>
-                Informations d'expédition
-              </h3>
-              <p className='text-[11px] text-gray-600'>
+          {/* Shipment Info Section (for SHIPPED) */}
+          {displayData.status === 'SHIPPED' && (
+            <div className='border border-green-200 rounded-lg p-3 bg-green-50'>
+              <div className='flex gap-2 items-center mb-1'>
+                <CheckCircle2 className='w-4 h-4 text-green-600' />
+                <h3 className='text-[12px] font-semibold text-green-800'>
+                  Expédition validée
+                </h3>
+              </div>
+              <p className='text-[11px] text-green-700 ml-6'>
                 Expédié le:{' '}
-                {preparation.shippedAt
-                  ? new Date(preparation.shippedAt).toLocaleDateString('fr-FR')
+                {displayData.shippedAt
+                  ? new Date(displayData.shippedAt).toLocaleDateString('fr-FR')
                   : 'N/A'}
               </p>
-              {preparation.deliveredAt && (
-                <p className='text-[11px] text-gray-600 mt-1'>
-                  Livré le:{' '}
-                  {new Date(preparation.deliveredAt).toLocaleDateString('fr-FR')}
-                </p>
-              )}
+              <p className='text-[11px] text-green-700 ml-6 mt-1'>
+                Stock décrémenté. Prêt pour facturation.
+              </p>
             </div>
           )}
 
-          {/* Invoice Link Section (for Facturé) */}
-          {order.status === 'Facturé' && (
+          {/* Invoice Link Section (for INVOICED) */}
+          {displayData.status === 'INVOICED' && (
             <div className='border border-gray-200 rounded-lg p-3 bg-blue-50'>
               <h3 className='text-[12px] font-semibold text-gray-700 mb-2'>
                 Facture
               </h3>
               <p className='text-[11px] text-gray-600'>
                 Facturé le:{' '}
-                {preparation.invoicedAt
-                  ? new Date(preparation.invoicedAt).toLocaleDateString('fr-FR')
+                {displayData.invoicedAt
+                  ? new Date(displayData.invoicedAt).toLocaleDateString('fr-FR')
                   : 'N/A'}
               </p>
               <button className='mt-2 text-[11px] text-blue-600 font-semibold hover:underline'>
@@ -214,127 +319,68 @@ export default function DeliveryNoteDetailsPage({
       </div>
 
       {/* Fixed Footer with Actions */}
-      {!isReadOnly && (
-        <div className='flex-shrink-0 pt-3 pb-4 bg-white border-t border-gray-200 space-y-2 px-4'>
-          {/* Buttons by status */}
-          {(order.status === 'DRAFT' || order.status === 'À préparer') && (
+      <div className='flex-shrink-0 pt-3 pb-4 bg-white border-t border-gray-200 space-y-2 px-4'>
+        {/* ===== STEP 1: Prêt à quai -> Expédier ===== */}
+        {displayData.status === 'READY_TO_SHIP' && (
+          <>
             <button
-              onClick={() => {
-                // TODO: Implement print functionality
-                window.print();
-              }}
-              className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
+              onClick={handleShipDelivery}
+              className='w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d] shadow-sm'
             >
-              <Printer className='w-4 h-4' />
+              <Truck className='w-5 h-5' />
+              Valider le départ camion
+            </button>
+            <button
+              onClick={handlePrint}
+              className='w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+            >
+              <Printer className='w-5 h-5' />
               Imprimer le BL
             </button>
-          )}
+          </>
+        )}
 
-          {order.status === 'Prêt à expédier' && (
-            <>
-              <button
-                onClick={() => handleStatusTransition('Expédié')}
-                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
-              >
-                <Package className='w-4 h-4' />
-                Marquer comme expédié
-              </button>
-              <button
-                onClick={() => {
-                  // TODO: Implement print functionality
-                  window.print();
-                }}
-                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
-              >
-                <Printer className='w-4 h-4' />
-                Imprimer le BL
-              </button>
-            </>
-          )}
-
-          {order.status === 'Expédié' && (
-            <>
-              <button
-                onClick={() => handleStatusTransition('Livré')}
-                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
-              >
-                <CheckCircle2 className='w-4 h-4' />
-                Marquer comme livré
-              </button>
-              <button
-                onClick={() => {
-                  // TODO: Implement print functionality
-                  window.print();
-                }}
-                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
-              >
-                <Printer className='w-4 h-4' />
-                Imprimer le BL
-              </button>
-            </>
-          )}
-
-          {order.status === 'Livré' && (
-            <>
-              <button
-                onClick={() => handleStatusTransition('Facturé')}
-                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
-              >
-                <FileText className='w-4 h-4' />
-                Créer la facture
-              </button>
-              <button
-                onClick={() => {
-                  // TODO: Implement print functionality
-                  window.print();
-                }}
-                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
-              >
-                <Printer className='w-4 h-4' />
-                Imprimer le BL
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Read-only footer for Facturé and Annulé */}
-      {isReadOnly && (
-        <div className='flex-shrink-0 pt-3 pb-4 bg-white border-t border-gray-200 space-y-2 px-4'>
-          {order.status === 'Facturé' && (
-            <>
-              <button className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'>
-                <FileText className='w-4 h-4' />
-                Voir la facture
-              </button>
-              <button
-                onClick={() => {
-                  // TODO: Implement print functionality
-                  window.print();
-                }}
-                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
-              >
-                <Printer className='w-4 h-4' />
-                Imprimer le BL
-              </button>
-            </>
-          )}
-
-          {order.status === 'Annulé' && (
+        {/* ===== STEP 2: Expédié -> Facturer ===== */}
+        {(displayData.status === 'SHIPPED' ||
+          displayData.status === 'SIGNED') && (
+          <>
             <button
-              onClick={() => {
-                // TODO: Implement print functionality
-                window.print();
-              }}
-              className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-gray-100 text-gray-700 hover:bg-gray-200'
+              onClick={handleInvoiceDelivery}
+              className='w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 text-[14px] transition-all bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+            >
+              <FileText className='w-5 h-5' />
+              Générer la Facture
+            </button>
+            <button
+              onClick={handlePrint}
+              className='w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+            >
+              <Printer className='w-5 h-5' />
+              Réimprimer BL
+            </button>
+          </>
+        )}
+
+        {/* ===== STEP 3: Facturé (Fin) ===== */}
+        {displayData.status === 'INVOICED' && (
+          <div className='flex gap-2'>
+            <button
+              className='flex-1 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] bg-gray-100 text-gray-600'
+              disabled
+            >
+              <CheckCircle2 className='w-4 h-4' />
+              Facturé
+            </button>
+            <button
+              onClick={handlePrint}
+              className='flex-1 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
             >
               <Printer className='w-4 h-4' />
-              Imprimer le BL
+              BL
             </button>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-

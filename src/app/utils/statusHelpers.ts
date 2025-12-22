@@ -59,8 +59,8 @@ export function getDeliveryNoteStatusLabelFr(
   status: DeliveryNoteStatus
 ): string {
   switch (status) {
-    case 'DRAFT':
-      return 'Brouillon';
+    case 'READY_TO_SHIP':
+      return 'Prêt à quai';
     case 'SHIPPED':
       return 'Expédié';
     case 'SIGNED':
@@ -110,25 +110,36 @@ function isPickingTaskStatus(status: OrderStatus): status is PickingTaskStatus {
 function isDeliveryNoteStatus(
   status: OrderStatus
 ): status is DeliveryNoteStatus {
-  return ['DRAFT', 'SHIPPED', 'SIGNED', 'INVOICED'].includes(
+  return ['READY_TO_SHIP', 'SHIPPED', 'SIGNED', 'INVOICED'].includes(
     status as DeliveryNoteStatus
   );
 }
 
 /**
  * Returns CSS classes for status badge colors
- * - Neutral (gray): DRAFT, PENDING
+ * - Neutral (gray): DRAFT (SalesOrder), PENDING
  * - Warning (orange): IN_PREPARATION, IN_PROGRESS, PARTIALLY_SHIPPED
  * - Success (green): SHIPPED, INVOICED, COMPLETED
- * - Info (blue): CONFIRMED, SHIPPED (BL)
+ * - Info (blue): CONFIRMED, DRAFT (DeliveryNote) - "Prêt à quai"
  * - Danger (red): CANCELLED
  */
-export function getStatusBadgeColor(status: OrderStatus): {
+export function getStatusBadgeColor(
+  status: OrderStatus,
+  documentType?: DocumentType
+): {
   bg: string;
   text: string;
 } {
+  // Special case: READY_TO_SHIP for DeliveryNote (BL) should be blue ("Prêt à quai")
+  if (status === 'READY_TO_SHIP' && documentType === 'BL') {
+    return {
+      bg: 'bg-blue-100',
+      text: 'text-blue-700',
+    };
+  }
+
   switch (status) {
-    // Neutral (gray)
+    // Neutral (gray) - DRAFT for SalesOrder, PENDING
     case 'DRAFT':
     case 'PENDING':
       return {
@@ -146,9 +157,23 @@ export function getStatusBadgeColor(status: OrderStatus): {
       };
 
     // Success (green)
-    case 'SHIPPED':
     case 'INVOICED':
     case 'COMPLETED':
+      return {
+        bg: 'bg-green-100',
+        text: 'text-green-700',
+      };
+
+    // Warning (orange) - SHIPPED for DeliveryNote
+    case 'SHIPPED':
+      // Special handling: if it's a DeliveryNote, use orange
+      if (documentType === 'BL') {
+        return {
+          bg: 'bg-orange-100',
+          text: 'text-orange-700',
+        };
+      }
+      // For SalesOrder, use green
       return {
         bg: 'bg-green-100',
         text: 'text-green-700',
@@ -221,7 +246,7 @@ export function canTransitionStatus(
   // BL (Delivery Note) transitions
   if (isDeliveryNoteStatus(currentStatus) && isDeliveryNoteStatus(newStatus)) {
     const validTransitions: Record<DeliveryNoteStatus, DeliveryNoteStatus[]> = {
-      DRAFT: ['SHIPPED'],
+      READY_TO_SHIP: ['SHIPPED'],
       SHIPPED: ['INVOICED', 'SIGNED'],
       SIGNED: ['INVOICED'],
       INVOICED: [], // Terminal state
@@ -269,7 +294,6 @@ export function getAvailableActions(
       case 'IN_PROGRESS':
         return ['Continuer la préparation', 'Terminer la préparation'];
       case 'COMPLETED':
-      case 'CANCELLED':
         return [];
       default:
         return [];
@@ -278,8 +302,9 @@ export function getAvailableActions(
 
   // BL (Delivery Note) actions
   if (isDeliveryNoteStatus(status)) {
-    switch (status) {
-      case 'DRAFT':
+    const deliveryNoteStatus = status as DeliveryNoteStatus;
+    switch (deliveryNoteStatus) {
+      case 'READY_TO_SHIP':
         return ['Voir le bon de livraison'];
       case 'SHIPPED':
         return ['Créer la facture', 'Voir / imprimer le BL'];
@@ -319,7 +344,7 @@ export function canCancelOrder(
 
   // BL (Delivery Note) cannot be cancelled once SHIPPED
   if (isDeliveryNoteStatus(status)) {
-    return status === 'DRAFT';
+    return (status as DeliveryNoteStatus) === 'READY_TO_SHIP';
   }
 
   return false;

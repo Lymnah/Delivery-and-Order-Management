@@ -251,13 +251,13 @@ export const getUnifiedOrdersForAtelier = (): UnifiedOrder[] => {
   );
   console.log('[DEBUG unifiedOrderHelpers] activePickingTasks:', activePickingTasks.length, activePickingTasks.map(pt => ({ id: pt.pickingTaskId, salesOrderId: pt.salesOrderId, status: pt.status })));
 
-  // Get all DeliveryNotes (DRAFT, SHIPPED, INVOICED)
+  // Get all DeliveryNotes (READY_TO_SHIP, SHIPPED, INVOICED)
   // IMPORTANT: Exclude SHIPPED/INVOICED orders that are in the future (they shouldn't exist)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const atelierDeliveryNotes = deliveryNotes.filter((dn) => {
     const isValidStatus =
-      dn.status === 'DRAFT' || dn.status === 'SHIPPED' || dn.status === 'INVOICED';
+      dn.status === 'READY_TO_SHIP' || dn.status === 'SHIPPED' || dn.status === 'INVOICED';
     
     // Exclude SHIPPED/INVOICED orders in the future
     if (dn.status === 'SHIPPED' || dn.status === 'INVOICED') {
