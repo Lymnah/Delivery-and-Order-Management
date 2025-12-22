@@ -112,15 +112,16 @@ export default function ProductPreparationCard({
 
           {/* Zone des Lots (Affichage horizontal en Chips) */}
           {scannedLots.length > 0 ? (
-            <div className='flex flex-wrap gap-1.5'>
+            <div className='flex flex-col gap-1.5'>
               {scannedLots.map((lot, index) => (
                 <div
                   key={index}
-                  className='inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200'
+                  className='flex items-center justify-between w-full px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200'
                 >
-                  <ScanLine className='w-3 h-3 mr-1 opacity-50' />
-                  <span className='font-mono'>{lot.lotNumber}</span>
-                  <span className='mx-1 text-gray-300'>|</span>
+                  <div className='flex items-center gap-1'>
+                    <ScanLine className='w-3 h-3 opacity-50' />
+                    <span className='font-mono'>{lot.lotNumber}</span>
+                  </div>
                   <span className='font-bold'>{lot.quantity}</span>
                 </div>
               ))}
