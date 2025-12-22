@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   format,
   addDays,
@@ -17,13 +17,6 @@ import {
   Package,
   Plus,
 } from 'lucide-react';
-import HomeIcon from '@mui/icons-material/Home';
-import DescriptionIcon from '@mui/icons-material/Description';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import MenuIcon from '@mui/icons-material/Menu';
-import SignalCellularAltIcon from '@mui/icons-material/SignalCellularAlt';
-import WifiIcon from '@mui/icons-material/Wifi';
-import BatteryFullIcon from '@mui/icons-material/BatteryFull';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { DateCalendar } from '@mui/x-date-pickers/DateCalendar';
@@ -33,180 +26,75 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fr';
 import type { Dayjs } from 'dayjs';
-import svgPaths from '../imports/svg-386lc3yi7f';
-import svgPathsStock from '../imports/svg-gt4hwy99w6';
 import {
   products,
   orders,
   clientLogos,
-  getToday,
   type Product,
   type Order,
 } from '../data/database';
 import Dashboard from './Dashboard';
 import ProductCard from './components/ProductCard';
+import StatusBar from './components/layout/StatusBar';
+import TabBar from './components/layout/TabBar';
+import NavBar, { type ViewType } from './components/layout/NavBar';
+import HomeIndicator from './components/layout/HomeIndicator';
+import LogistiqueSelection from './components/logistics/LogistiqueSelection';
+import LogistiqueCommandes from './components/logistics/LogistiqueCommandes';
+import ManufacturingOrderModal from './components/modals/ManufacturingOrderModal';
+import PeriodSelectorModal from './components/modals/PeriodSelectorModal';
+import DocumentPickerModal from './components/modals/DocumentPickerModal';
+import DocumentsModal from './components/modals/DocumentsModal';
+import CustomDatePickerModal from './components/modals/CustomDatePickerModal';
+import OrderCard from './components/orders/OrderCard';
+import { useCurrentDate } from './hooks/useCurrentDate';
+import { useOrders } from './hooks/useOrders';
+import { useProducts } from './hooks/useProducts';
+import { useFilters } from './hooks/useFilters';
+import { getOrdersWithCurrentDates } from './utils/orderHelpers';
+import {
+  getDaysUntil,
+  getSectionDateLabel,
+  groupOrdersByDate,
+} from './utils/dateHelpers';
 
 // Set dayjs locale globally
 dayjs.locale('fr');
 
-function StatusBar() {
-  return (
-    <div className='absolute bg-white flex h-[59px] items-end justify-between left-1/2 top-0 translate-x-[-50%] w-[393px] px-4'>
-      <p className='text-[16px] mb-2'>9:41</p>
-      <div className='flex gap-1 items-center mb-2'>
-        <SignalCellularAltIcon sx={{ fontSize: 16 }} />
-        <WifiIcon sx={{ fontSize: 16 }} />
-        <BatteryFullIcon sx={{ fontSize: 20 }} />
-      </div>
-    </div>
-  );
-}
-
-function TabBar() {
-  return (
-    <div className='absolute backdrop-blur-[10px] backdrop-filter bg-white left-1/2 top-[59px] translate-x-[-50%] w-[393px] py-2 border-b border-gray-200'>
-      <div className='flex items-center justify-center gap-2'>
-        <div className='w-3 h-3 opacity-60'>🔒</div>
-        <p className='text-[12px]'>apenda.app/</p>
-      </div>
-    </div>
-  );
-}
-
-function NavBar({
-  currentView,
-  onViewChange,
-}: {
-  currentView:
-    | 'dashboard'
-    | 'logistique-selection'
-    | 'logistique'
-    | 'logistique-commandes';
-  onViewChange: (
-    view:
-      | 'dashboard'
-      | 'logistique-selection'
-      | 'logistique'
-      | 'logistique-commandes'
-  ) => void;
-}) {
-  return (
-    <div className='absolute bg-[#12895a] bottom-0 flex items-center justify-around left-1/2 translate-x-[-50%] w-[393px] h-[75px]'>
-      <button
-        onClick={() => onViewChange('dashboard')}
-        className='flex flex-col items-center text-white'
-      >
-        {currentView === 'dashboard' && (
-          <div className='w-16 h-1 bg-white rounded-b-lg mb-5'></div>
-        )}
-        <HomeIcon
-          sx={{
-            fontSize: 28,
-            marginBottom: currentView === 'dashboard' ? '0px' : '4px',
-            opacity: currentView === 'dashboard' ? 1 : 0.5,
-          }}
-        />
-      </button>
-      <button
-        onClick={() => onViewChange('logistique-selection')}
-        className='flex flex-col items-center text-white'
-      >
-        {(currentView === 'logistique' ||
-          currentView === 'logistique-selection' ||
-          currentView === 'logistique-commandes') && (
-          <div className='w-16 h-1 bg-white rounded-b-lg mb-5'></div>
-        )}
-        <DescriptionIcon
-          sx={{
-            fontSize: 28,
-            marginBottom:
-              currentView === 'logistique' ||
-              currentView === 'logistique-selection' ||
-              currentView === 'logistique-commandes'
-                ? '0px'
-                : '4px',
-            opacity:
-              currentView === 'logistique' ||
-              currentView === 'logistique-selection' ||
-              currentView === 'logistique-commandes'
-                ? 1
-                : 0.5,
-          }}
-        />
-      </button>
-      <div className='flex flex-col items-center text-white opacity-50'>
-        <NotificationsIcon sx={{ fontSize: 28, marginBottom: '4px' }} />
-      </div>
-      <div className='flex flex-col items-center text-white opacity-50'>
-        <MenuIcon sx={{ fontSize: 28, marginBottom: '4px' }} />
-      </div>
-    </div>
-  );
-}
-
-function HomeIndicator() {
-  return (
-    <div className='absolute bottom-0 h-[34px] left-[calc(50%+0.5px)] translate-x-[-50%] w-[390px]'>
-      <div className='absolute bg-black bottom-[8px] h-[5px] left-1/2 rounded-[100px] translate-x-[-50%] w-[134px]' />
-    </div>
-  );
-}
-
 export default function App() {
   // Navigation state
-  const [currentView, setCurrentView] = useState<
-    'dashboard' | 'logistique-selection' | 'logistique' | 'logistique-commandes'
-  >('dashboard');
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
 
-  // Date actuelle (real-time) - mise à jour chaque jour à minuit
-  const [now, setNow] = useState(getToday());
-
-  // Mettre à jour la date actuelle chaque jour à minuit
-  useEffect(() => {
-    const updateDate = () => {
-      setNow(getToday());
-    };
-
-    // Mettre à jour immédiatement
-    updateDate();
-
-    // Calculer le temps jusqu'à minuit prochain
-    const getMsUntilMidnight = () => {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(0, 0, 0, 0);
-      return tomorrow.getTime() - Date.now();
-    };
-
-    // Programmer la mise à jour à minuit
-    const timeoutId = setTimeout(() => {
-      updateDate();
-      // Ensuite, mettre à jour toutes les heures pour être sûr
-      const intervalId = setInterval(updateDate, 60 * 60 * 1000);
-      return () => clearInterval(intervalId);
-    }, getMsUntilMidnight());
-
-    return () => clearTimeout(timeoutId);
-  }, []);
+  // Hooks
+  const now = useCurrentDate();
+  const {
+    orders: ordersWithCurrentDates,
+    getOrdersForDate: getOrdersForDateHelper,
+    getSortedOrders,
+  } = useOrders(now);
 
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [mode, setMode] = useState<'clients' | 'products'>('clients');
-  const [activeMode, setActiveMode] = useState<'period' | 'documents'>(
-    'period'
-  );
+
+  const {
+    timeRange,
+    setTimeRange,
+    filterReferenceDate,
+    setFilterReferenceDate,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
+    activeMode,
+    setActiveMode,
+    navigatePeriod,
+  } = useFilters(now);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetailsPage, setShowOrderDetailsPage] = useState(false);
   const [selectedProductsInOrder, setSelectedProductsInOrder] = useState<
     string[]
   >([]);
-  const [currentDate, setCurrentDate] = useState(addDays(now, 7)); // Semaine à venir (J+7) - basé sur la date actuelle
-  const [timeRange, setTimeRange] = useState<
-    'all' | 'today' | 'week' | 'month' | 'custom' | 'documents'
-  >('all');
-  // Date de référence pour la navigation des filtres (today, week, month)
-  const [filterReferenceDate, setFilterReferenceDate] = useState(now);
-  const [customStartDate, setCustomStartDate] = useState<Dayjs | null>(null);
-  const [customEndDate, setCustomEndDate] = useState<Dayjs | null>(null);
+  const [currentDate, setCurrentDate] = useState(addDays(now, 7));
   const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   const [showPeriodSelector, setShowPeriodSelector] = useState(false);
   const [showManufacturingOrder, setShowManufacturingOrder] = useState(false);
@@ -224,11 +112,11 @@ export default function App() {
   >({});
 
   // Calculate days in current view
-  const getDaysInRange = () => {
+  const getDaysInRange = (): Date[] => {
     if (timeRange === 'week') {
       const start = startOfWeek(currentDate, { locale: fr });
       const end = endOfWeek(currentDate, { locale: fr });
-      const days = [];
+      const days: Date[] = [];
       let current = start;
       while (current <= end) {
         days.push(current);
@@ -238,7 +126,7 @@ export default function App() {
     } else if (timeRange === 'month') {
       const start = startOfMonth(currentDate);
       const end = endOfMonth(currentDate);
-      const days = [];
+      const days: Date[] = [];
       let current = start;
       while (current <= end) {
         days.push(current);
@@ -246,7 +134,7 @@ export default function App() {
       }
       return days;
     } else if (timeRange === 'custom' && customStartDate && customEndDate) {
-      const days = [];
+      const days: Date[] = [];
       let current = customStartDate.toDate();
       while (current <= customEndDate.toDate()) {
         days.push(current);
@@ -257,248 +145,44 @@ export default function App() {
     return [];
   };
 
-  // Get orders with dates recalculated relative to current date
-  // This fixes the issue where INITIAL_NOW in database.ts is calculated once at module load
-  // The first order should always be "today", so we use it as reference to calculate the offset
-  const getOrdersWithCurrentDates = () => {
-    const today = now;
-    // The first order (id: '1') should be delivered "today" according to database.ts
-    // We calculate the offset based on this assumption
-    const firstOrderDate = new Date(orders[0].deliveryDate);
-    const daysOffset = Math.ceil(
-      (today.getTime() - firstOrderDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
+  // Use hooks for products aggregation
+  const aggregatedProducts = useProducts({
+    today: now,
+    activeMode,
+    timeRange,
+    filterReferenceDate,
+    currentView,
+    getDaysInRange,
+  });
 
-    // If no offset needed (dates are already correct), return orders as-is
-    if (daysOffset === 0) {
-      return orders;
-    }
-
-    // Adjust all delivery dates by the offset
-    return orders.map((order) => {
-      const orderDate = new Date(order.deliveryDate);
-      const adjustedDate = new Date(orderDate);
-      adjustedDate.setDate(adjustedDate.getDate() + daysOffset);
-      return {
-        ...order,
-        deliveryDate: adjustedDate,
-      };
-    });
-  };
-
-  // Get orders for a specific date
+  // Helper functions
   const getOrdersForDate = (date: Date) => {
-    const currentOrders = getOrdersWithCurrentDates();
-    return currentOrders.filter((order) => isSameDay(order.deliveryDate, date));
+    return getOrdersForDateHelper(date);
   };
 
-  // Calculate aggregated products
+  const getSortedOrdersByUrgency = () => {
+    return getSortedOrders();
+  };
+
   const getAggregatedProducts = () => {
-    let ordersToAggregate: Order[];
+    return aggregatedProducts;
+  };
 
-    if (activeMode === 'period') {
-      const currentOrders = getOrdersWithCurrentDates();
-
-      // For commandes view, use the same filtering logic as the orders list
-      if (currentView === 'logistique-commandes') {
-        let filteredOrders = currentOrders;
-
-        if (timeRange === 'today') {
-          filteredOrders = filteredOrders.filter((order) =>
-            isSameDay(order.deliveryDate, filterReferenceDate)
-          );
-        } else if (timeRange === 'week') {
-          const weekStart = startOfWeek(filterReferenceDate, {
-            locale: fr,
-          });
-          const weekEnd = endOfWeek(filterReferenceDate, {
-            locale: fr,
-          });
-          filteredOrders = filteredOrders.filter(
-            (order) =>
-              order.deliveryDate >= weekStart && order.deliveryDate <= weekEnd
-          );
-        } else if (timeRange === 'month') {
-          const monthStart = startOfMonth(filterReferenceDate);
-          const monthEnd = endOfMonth(filterReferenceDate);
-          filteredOrders = filteredOrders.filter(
-            (order) =>
-              order.deliveryDate >= monthStart && order.deliveryDate <= monthEnd
-          );
-        }
-        // 'all' doesn't filter anything
-
-        ordersToAggregate = filteredOrders;
-      } else {
-        // For other views, use the original logic
-        const days = getDaysInRange();
-        ordersToAggregate = currentOrders.filter((order) =>
-          days.some((day) => isSameDay(order.deliveryDate, day))
-        );
-      }
-    } else {
-      ordersToAggregate = [];
-    }
-
-    const aggregation = new Map<string, number>();
-    ordersToAggregate.forEach((order) => {
-      order.items.forEach((item) => {
-        const current = aggregation.get(item.productId) || 0;
-        aggregation.set(item.productId, current + item.quantity);
-      });
-    });
-
-    return Array.from(aggregation.entries()).map(([productId, quantity]) => {
-      const product = products.find((p) => p.id === productId)!;
-      return {
-        product,
-        quantity,
-        deficit: Math.max(0, quantity - product.stock),
-        orders: ordersToAggregate.filter((o) =>
-          o.items.some((i) => i.productId === productId)
-        ),
-      };
-    });
+  const getOrderCard = (order: Order) => {
+    return (
+      <OrderCard
+        key={order.id}
+        order={order}
+        today={now}
+        onClick={openOrderDetails}
+      />
+    );
   };
 
   const openOrderDetails = (order: Order) => {
     setSelectedOrder(order);
     setSelectedProductsInOrder([]);
     setShowOrderDetailsPage(true);
-  };
-
-  const getDaysUntil = (date: Date) => {
-    const diff = Math.ceil(
-      (date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    return diff;
-  };
-
-  // Helper functions for orders
-  const getSortedOrdersByUrgency = () => {
-    const currentOrders = getOrdersWithCurrentDates();
-    return currentOrders.sort((a, b) => {
-      const daysA = getDaysUntil(a.deliveryDate);
-      const daysB = getDaysUntil(b.deliveryDate);
-      // En retard d'abord, puis par date croissante
-      if (daysA < 0 && daysB >= 0) return -1;
-      if (daysA >= 0 && daysB < 0) return 1;
-      return daysA - daysB;
-    });
-  };
-
-  // Helper pour formater les textes de date de manière courte
-  const getShortDateLabel = (daysUntil: number) => {
-    if (daysUntil < 0) {
-      return `(Retard ${Math.abs(daysUntil)}j)`;
-    } else if (daysUntil === 0) {
-      return '(Auj.)';
-    } else if (daysUntil < 7) {
-      return `(Dans ${daysUntil}j)`;
-    }
-    return '';
-  };
-
-  // Helper pour formater la date complète dans les sections par jour
-  const getSectionDateLabel = (date: Date, daysUntil: number) => {
-    const dayName = format(date, 'EEEE', { locale: fr });
-    const dayNameCapitalized =
-      dayName.charAt(0).toUpperCase() + dayName.slice(1);
-    const dateShort = format(date, 'dd.MM.yy', { locale: fr });
-    const dateLabel = getShortDateLabel(daysUntil);
-    return `${dayNameCapitalized} ${dateShort} ${dateLabel}`;
-  };
-
-  const groupOrdersByDate = (ordersList: Order[]) => {
-    const groups: Record<string, Order[]> = {};
-    ordersList.forEach((order) => {
-      const dateKey = format(order.deliveryDate, 'yyyy-MM-dd');
-      if (!groups[dateKey]) {
-        groups[dateKey] = [];
-      }
-      groups[dateKey].push(order);
-    });
-    return groups;
-  };
-
-  const getOrderCard = (order: Order) => {
-    const totalQty = order.items.reduce((sum, item) => sum + item.quantity, 0);
-    const daysUntil = getDaysUntil(order.deliveryDate);
-
-    // Color code for date
-    let dateColor = 'text-gray-600';
-    let dateBgColor = 'bg-gray-100';
-    if (daysUntil < 0) {
-      dateColor = 'text-red-600';
-      dateBgColor = 'bg-red-50';
-    } else if (daysUntil < 7) {
-      dateColor = 'text-orange-600';
-      dateBgColor = 'bg-orange-50';
-    }
-
-    return (
-      <div
-        key={order.id}
-        onClick={() => openOrderDetails(order)}
-        className={`border rounded-lg p-4 relative cursor-pointer transition-all ${
-          order.type === 'BC'
-            ? 'border-blue-300 bg-blue-50/40 hover:bg-blue-50'
-            : 'border-orange-300 bg-orange-50/40 hover:bg-orange-50'
-        }`}
-      >
-        {/* Badge BC/BL */}
-        <span
-          className={`absolute top-3 right-3 px-2 py-0.5 rounded text-[10px] font-semibold ${
-            order.type === 'BC'
-              ? 'bg-blue-100 text-blue-700'
-              : 'bg-orange-100 text-orange-700'
-          }`}
-        >
-          {order.type}
-        </span>
-
-        <div className='flex items-start gap-3'>
-          {/* Customer Logo */}
-          <img
-            src={clientLogos[order.client] || ''}
-            alt=''
-            className='w-12 h-12 rounded object-cover flex-shrink-0'
-          />
-
-          {/* Order Information */}
-          <div className='flex-1 min-w-0 space-y-1.5'>
-            {/* Line 1: Customer name */}
-            <p className='font-semibold text-[16px] text-gray-900'>
-              {order.client}
-            </p>
-
-            {/* Line 2: Delivery deadline */}
-            <div className='flex items-center gap-1.5'>
-              <span
-                className={`${dateColor} font-semibold text-[13px] px-2 py-0.5 rounded ${dateBgColor}`}
-              >
-                {format(order.deliveryDate, 'dd/MM/yy', {
-                  locale: fr,
-                })}
-                {' · '}
-                {daysUntil < 0
-                  ? `-${Math.abs(daysUntil)}j`
-                  : daysUntil === 0
-                  ? 'Auj.'
-                  : `+${daysUntil}j`}
-              </span>
-            </div>
-
-            {/* Line 3: Order contents */}
-            <p className='text-[13px] text-gray-700'>
-              {order.items.length} article
-              {order.items.length > 1 ? 's' : ''} différent
-              {order.items.length > 1 ? 's' : ''} • {totalQty} unités
-            </p>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   const handleDashboardNavigate = (module: string) => {
@@ -518,51 +202,20 @@ export default function App() {
       {currentView === 'dashboard' ? (
         <Dashboard onNavigate={handleDashboardNavigate} />
       ) : currentView === 'logistique-selection' ? (
-        <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
-          {/* Page de sélection Logistique */}
-          <div className='absolute bg-white top-[87px] left-0 w-[393px] h-[691px] overflow-y-auto px-4 py-7'>
-            <div className='flex flex-col gap-6 items-center justify-center min-h-full'>
-              <div className='text-center'>
-                <p className='font-semibold text-[24px] mb-2'>Logistique</p>
-                <p className='text-[14px] text-gray-600'>
-                  Sélectionnez une vue
-                </p>
-              </div>
-              <div className='flex flex-col gap-4 w-full max-w-[280px]'>
-                <button
-                  onClick={() => {
-                    setMode('clients');
-                    setView('list');
-                    setTimeRange('all');
-                    setFilterReferenceDate(now);
-                    setCurrentView('logistique-commandes');
-                  }}
-                  className='bg-[#12895a] text-white px-6 py-5 rounded-lg font-semibold text-[16px] hover:bg-[#107a4d] transition-colors flex items-center justify-center gap-3 shadow-md'
-                >
-                  <DescriptionIcon sx={{ fontSize: 28 }} />
-                  Commandes
-                </button>
-                <button
-                  onClick={() => {
-                    setMode('products');
-                    setCurrentView('logistique');
-                  }}
-                  className='bg-[#12895a] text-white px-6 py-5 rounded-lg font-semibold text-[16px] hover:bg-[#107a4d] transition-colors flex items-center justify-center gap-3 shadow-md'
-                >
-                  <Package className='w-7 h-7' />
-                  OF
-                </button>
-              </div>
-              <button
-                onClick={() => setCurrentView('dashboard')}
-                className='mt-4 flex items-center gap-2 text-[#12895a] text-[14px] font-semibold hover:underline'
-              >
-                <ChevronLeft className='w-4 h-4' />
-                Retour au Dashboard
-              </button>
-            </div>
-          </div>
-        </div>
+        <LogistiqueSelection
+          onNavigateToCommandes={() => {
+            setMode('clients');
+            setView('list');
+            setTimeRange('all');
+            setFilterReferenceDate(now);
+            setCurrentView('logistique-commandes');
+          }}
+          onNavigateToProducts={() => {
+            setMode('products');
+            setCurrentView('logistique');
+          }}
+          onNavigateToDashboard={() => setCurrentView('dashboard')}
+        />
       ) : currentView === 'logistique-commandes' ? (
         // Vue Commandes - Sections par jour + Bouton bascule Liste/Calendrier + Filtres rapides
         <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
@@ -1141,7 +794,7 @@ export default function App() {
                             0
                           );
                           const dayOrders = grouped[dateKey];
-                          const daysUntil = getDaysUntil(date);
+                          const daysUntil = getDaysUntil(date, now);
 
                           // Rouge pour aujourd'hui ou dans le passé, gris pour le reste
                           const sectionColor =
@@ -1716,12 +1369,12 @@ export default function App() {
               <>
                 {view === 'list' && (
                   <div className='space-y-4 pb-20'>
-                    {getOrdersWithCurrentDates().map((order) => {
+                    {ordersWithCurrentDates.map((order) => {
                       const totalQty = order.items.reduce(
                         (sum, item) => sum + item.quantity,
                         0
                       );
-                      const daysUntil = getDaysUntil(order.deliveryDate);
+                      const daysUntil = getDaysUntil(order.deliveryDate, now);
 
                       // Color code for date
                       let dateColor = 'text-gray-600';
@@ -2062,7 +1715,8 @@ export default function App() {
                                         0
                                       );
                                       const daysUntil = getDaysUntil(
-                                        order.deliveryDate
+                                        order.deliveryDate,
+                                        now
                                       );
 
                                       // Color code for date
@@ -2298,12 +1952,12 @@ export default function App() {
                 </div>
 
                 <div className='space-y-3 px-6 overflow-y-auto flex-1'>
-                  {getOrdersWithCurrentDates().map((order) => {
+                  {ordersWithCurrentDates.map((order) => {
                     const totalQty = order.items.reduce(
                       (sum, item) => sum + item.quantity,
                       0
                     );
-                    const daysUntil = getDaysUntil(order.deliveryDate);
+                    const daysUntil = getDaysUntil(order.deliveryDate, now);
 
                     // Color code for date
                     let dateColor = 'text-gray-600';
@@ -2450,7 +2104,7 @@ export default function App() {
                           (item) => item.productId === selectedProduct.id
                         )
                       : null;
-                    const daysUntil = getDaysUntil(order.deliveryDate);
+                    const daysUntil = getDaysUntil(order.deliveryDate, now);
 
                     // Color code for date
                     let dateColor = 'text-gray-600';
