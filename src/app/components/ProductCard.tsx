@@ -169,24 +169,25 @@ export default function ProductCard({
           )}
         </div>
 
-        {/* === SECOND ROW: Stock Bar (Unchanged Logic, refined styling) === */}
-        <div className='flex gap-4 items-end w-full'>
+        {/* Second row: Stock Bar - Full width */}
+        <div className='flex gap-4 pt-2 items-center w-full'>
           <div
             className={`relative flex-1 ${
-              manufacturingMode ? 'h-[46px]' : 'h-[36px]'
+              manufacturingMode ? 'h-[50px]' : 'h-[43px]'
             }`}
           >
             {/* Base slider bar */}
             <div
-              className={`absolute h-[6px] left-0 w-full rounded-full bg-gray-100 overflow-hidden ${
-                manufacturingMode ? 'bottom-[28px]' : 'bottom-[20px]'
+              className={`absolute h-[5px] left-0 w-full ${
+                manufacturingMode ? 'bottom-[37px]' : 'bottom-[30px]'
               }`}
             >
-              {/* Current stock */}
+              <div className='absolute bg-[#f5f5f6] inset-0 rounded' />
+              {/* Current stock (green/red) */}
               <div
-                className={`absolute h-full left-0 top-0 rounded-full ${
+                className={`absolute h-[5px] left-0 top-0 rounded ${
                   product.stock < product.stockMin
-                    ? 'bg-orange-500'
+                    ? 'bg-[#ea580c]'
                     : 'bg-[#16a34a]'
                 }`}
                 style={{
@@ -196,10 +197,10 @@ export default function ProductCard({
                   )}%`,
                 }}
               />
-              {/* Manufacturing Add */}
+              {/* Manufacturing quantity to add (orange) - only in manufacturing mode */}
               {manufacturingMode && (
                 <div
-                  className='absolute h-full top-0 bg-orange-400'
+                  className='absolute h-[5px] top-0 rounded bg-orange-500'
                   style={{
                     left: `${stockStartPercent}%`,
                     width: `${orangeBarWidth}%`,
@@ -208,7 +209,7 @@ export default function ProductCard({
               )}
             </div>
 
-            {/* Slider Input */}
+            {/* Interactive slider - only in manufacturing mode */}
             {manufacturingMode && onManufacturingQtyChange && (
               <>
                 <input
@@ -222,10 +223,15 @@ export default function ProductCard({
                       parseInt(e.target.value)
                     );
                   }}
-                  className='absolute bottom-[20px] h-[20px] w-full opacity-0 cursor-pointer z-10'
+                  className='absolute bottom-[30px] h-[20px] opacity-0 cursor-pointer z-10'
+                  style={{
+                    left: `${stockStartPercent}%`,
+                    width: `${stockEndPercent - stockStartPercent}%`,
+                  }}
                 />
+                {/* Slider thumb indicator */}
                 <div
-                  className='absolute bottom-[23px] w-4 h-4 bg-white border-[3px] border-orange-500 rounded-full shadow-md pointer-events-none z-20'
+                  className='absolute bottom-[32px] w-4 h-4 bg-orange-500 border-2 border-white rounded-full shadow-lg pointer-events-none z-20'
                   style={{
                     left: `${thumbPositionPercent}%`,
                     transform: 'translateX(-50%)',
@@ -234,56 +240,85 @@ export default function ProductCard({
               </>
             )}
 
-            {/* Min/Max Markers */}
+            {/* Stock Min marker (left triangle) */}
             <div
-              className='absolute flex flex-col items-center bottom-0'
+              className='absolute flex flex-col gap-1 items-center bottom-0'
               style={{
                 left: `${(product.stockMin / product.stockMax) * 80}%`,
                 transform: 'translateX(-50%)',
               }}
             >
-              <div className='w-0.5 h-1.5 bg-gray-300 mb-0.5'></div>
-              <span className='text-[10px] text-gray-400 font-medium leading-none'>
-                {product.stockMin}
-              </span>
+              <div className='h-[6px] w-[8.589px]'>
+                <svg
+                  className='block size-full'
+                  fill='none'
+                  preserveAspectRatio='none'
+                  viewBox='0 0 9 6'
+                >
+                  <path d={svgPathsStock.p44ee500} fill='#717680' />
+                </svg>
+              </div>
+              <p className='font-normal text-[12px] leading-none text-center text-[#535862] whitespace-nowrap pb-1'>
+                {product.stockMin} u
+              </p>
             </div>
 
+            {/* Stock Max marker (right triangle) */}
             <div
-              className='absolute flex flex-col items-center bottom-0'
-              style={{ left: `80%`, transform: 'translateX(-50%)' }}
+              className='absolute flex flex-col gap-1 items-center bottom-0'
+              style={{
+                left: `80%`,
+                transform: 'translateX(-50%)',
+              }}
             >
-              <div className='w-0.5 h-1.5 bg-gray-300 mb-0.5'></div>
-              <span className='text-[10px] text-gray-400 font-medium leading-none'>
-                Max
-              </span>
+              <div className='h-[6px] w-[8.589px]'>
+                <svg
+                  className='block size-full'
+                  fill='none'
+                  preserveAspectRatio='none'
+                  viewBox='0 0 9 6'
+                >
+                  <path d={svgPathsStock.p44ee500} fill='#717680' />
+                </svg>
+              </div>
+              <p className='font-normal text-[12px] leading-none text-center text-[#535862] whitespace-nowrap pb-1'>
+                {product.stockMax} u
+              </p>
             </div>
           </div>
 
-          {/* Total Badge */}
-          <div className='flex flex-col items-end'>
-            <span className='text-[10px] text-gray-400 font-medium mb-0.5'>
-              En stock
-            </span>
-            <div className='bg-gray-50 flex gap-2 items-center px-2 py-1 rounded-lg border border-gray-200'>
-              <div
-                className={`flex gap-1 items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-white ${
-                  product.stock < product.stockMin
-                    ? 'bg-orange-500'
-                    : 'bg-[#16a34a]'
-                }`}
-              >
-                Lot {product.lots}
+          {/* Badge: Lots + Stock total */}
+          <div className='self-start bg-[#f5f5f6] flex gap-1.5 items-center pl-0.5 pr-2.5 py-0.5 rounded-[48px] border border-[#d5d7da] shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] flex-shrink-0 scale-[0.85]'>
+            <div
+              className={`flex gap-1 items-center pl-1.5 pr-2.5 py-0.5 rounded-[48px] ${
+                product.stock < product.stockMin
+                  ? 'bg-[#ea580c]'
+                  : 'bg-[#16a34a]'
+              }`}
+            >
+              <div className='relative shrink-0 size-[14px]'>
+                <svg
+                  className='block size-full'
+                  fill='none'
+                  preserveAspectRatio='none'
+                  viewBox='0 0 16 16'
+                >
+                  <path d={svgPathsStock.p15d46900} fill='white' />
+                </svg>
               </div>
-              <span
-                className={`text-[12px] font-bold ${
-                  product.stock < product.stockMin
-                    ? 'text-orange-600'
-                    : 'text-[#16a34a]'
-                }`}
-              >
-                {product.stock}
-              </span>
+              <p className='font-normal text-[14px] text-center text-white'>
+                {product.lots}
+              </p>
             </div>
+            <p
+              className={`font-semibold text-[12px] text-center ${
+                product.stock < product.stockMin
+                  ? 'text-[#ea580c]'
+                  : 'text-[#16a34a]'
+              }`}
+            >
+              {product.stock} u
+            </p>
           </div>
         </div>
       </div>

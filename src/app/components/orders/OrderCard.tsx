@@ -228,7 +228,7 @@ export default function OrderCard({
           <img
             src={clientLogos[displayOrder.client] || ''}
             alt={displayOrder.client}
-            className='w-12 h-12 rounded-lg object-contain border border-gray-100 bg-gray-50'
+            className='w-10 h-10 rounded-lg object-contain border border-gray-100 bg-gray-50'
           />
         </div>
 

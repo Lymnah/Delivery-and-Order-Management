@@ -44,23 +44,9 @@ export type DeliveryNoteStatus =
   | 'SIGNED' // Optional V1
   | 'INVOICED';
 
-// ===== LEGACY STATUS TYPES (for backward compatibility during migration) =====
-// Old French statuses - will be deprecated
-export type LegacySalesOrderStatus =
-  | 'Brouillon'
-  | 'Confirmé'
-  | 'Partiellement livré'
-  | 'Livré'
-  | 'Clos';
-
-export type LegacyDeliveryNoteStatus =
-  | 'À préparer'
-  | 'En préparation'
-  | 'Prêt à expédier'
-  | 'Expédié'
-  | 'Livré'
-  | 'Facturé'
-  | 'Annulé';
+// ===== LEGACY STATUS TYPES REMOVED =====
+// Legacy status types have been removed. Use SalesOrderStatus, PickingTaskStatus, or DeliveryNoteStatus instead.
+// The mapLegacyStatusToNew() function in statusHelpers.ts can convert old French status strings to new enums.
 
 // Dispute status
 export type DisputeStatus = 'none' | 'open' | 'in_progress' | 'resolved';
@@ -180,11 +166,7 @@ export interface Order {
   items: OrderItem[];
   createdAt: Date;
   totalHT: number;
-  status:
-    | SalesOrderStatus
-    | DeliveryNoteStatus
-    | LegacySalesOrderStatus
-    | LegacyDeliveryNoteStatus; // Status depends on order type (required)
+  status: SalesOrderStatus | DeliveryNoteStatus | string; // Accepts legacy French status strings for backward compatibility
   disputeStatus?: DisputeStatus; // Optional dispute status
 }
 
@@ -279,6 +261,7 @@ export const products: Product[] = [
 // The old `orders` array has been completely removed.
 // Use `salesOrders`, `pickingTasks`, and `deliveryNotes` instead.
 // This export is kept as an empty array for backward compatibility with components that still reference it.
+// @deprecated Do not use. Use salesOrders, pickingTasks, or deliveryNotes instead.
 export const orders: Order[] = [];
 
 // Client logos mapping
@@ -986,15 +969,16 @@ demoDataReferenceDate = new Date(getToday()); // Set initial reference date
 export const deliveryPreparations: Map<string, DeliveryPreparation> = new Map();
 
 // Helper function to get or create delivery preparation for an order
+// @deprecated This is only used for legacy Order compatibility. Use PickingTask.scannedLots instead.
 export const getDeliveryPreparation = (
   orderId: string
 ): DeliveryPreparation => {
   if (!deliveryPreparations.has(orderId)) {
-    // Initialize with "READY_TO_SHIP" status for new orders (legacy compatibility)
-    const order = orders.find((o) => o.id === orderId);
+    // Initialize with "READY_TO_SHIP" status for new orders
+    // Note: This is only for legacy Order support. New system uses PickingTask.scannedLots
     deliveryPreparations.set(orderId, {
       orderId,
-      status: 'READY_TO_SHIP', // Using new enum value
+      status: 'READY_TO_SHIP',
       scannedLots: [],
     });
   }
@@ -1032,22 +1016,21 @@ export const resetProductLots = (productId: string): void => {
   });
 };
 
-// Helper function to update order status (legacy compatibility)
+// Helper function to update order status (legacy compatibility - deprecated)
+// @deprecated Use updateSalesOrderStatus, shipDeliveryNote, invoiceDeliveryNote instead
 export const updateOrderStatus = (
   orderId: string,
-  newStatus:
-    | SalesOrderStatus
-    | DeliveryNoteStatus
-    | LegacySalesOrderStatus
-    | LegacyDeliveryNoteStatus
+  newStatus: SalesOrderStatus | DeliveryNoteStatus | string
 ): void => {
-  const orderIndex = orders.findIndex((o) => o.id === orderId);
-  if (orderIndex !== -1) {
-    orders[orderIndex] = {
-      ...orders[orderIndex],
-      status: newStatus,
-    };
-  }
+  // Legacy function - orders array is now empty, so this does nothing
+  // Status updates should use the new document-specific functions:
+  // - updateSalesOrderStatus() for SalesOrder
+  // - shipDeliveryNote() for DeliveryNote
+  // - invoiceDeliveryNote() for DeliveryNote
+  console.warn(
+    `updateOrderStatus() called for ${orderId} - this function is deprecated. Use document-specific update functions instead.`
+  );
+  // No-op: orders array is empty and deprecated
 };
 
 // ===== NEW BACKEND FUNCTIONS =====

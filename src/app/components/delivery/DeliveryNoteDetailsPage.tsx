@@ -21,6 +21,7 @@ import {
   getDeliveryNoteStatusLabelFr,
 } from '../../utils/statusHelpers';
 import OrderHeader from './OrderHeader';
+import ProductDeliveryCard from './ProductDeliveryCard';
 
 interface DeliveryNoteDetailsPageProps {
   deliveryNote?: DeliveryNote; // New: DeliveryNote (priority)
@@ -219,59 +220,12 @@ export default function DeliveryNoteDetailsPage({
                 const lotsSummary = getProductLotsSummary(line.productId);
 
                 return (
-                  <div
+                  <ProductDeliveryCard
                     key={line.productId}
-                    className='border border-gray-300 rounded-lg p-3'
-                  >
-                    <div className='flex items-start gap-3 mb-2'>
-                      <div className='w-10 h-10 rounded bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden'>
-                        {product.imageUrl ? (
-                          <img
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className='w-full h-full object-cover'
-                          />
-                        ) : (
-                          <Package className='w-5 h-5 text-gray-400' />
-                        )}
-                      </div>
-                      <div className='flex-1 min-w-0'>
-                        <p className='font-semibold text-[14px] text-gray-900'>
-                          {product.name}
-                        </p>
-                        <p className='text-[11px] text-gray-600 mt-0.5'>
-                          Quantité livrée: {line.quantity} u
-                        </p>
-                        {lotsSummary.lotCount > 0 && (
-                          <p className='text-[11px] text-gray-600'>
-                            Quantité scannée: {lotsSummary.totalScanned} u (
-                            {lotsSummary.lotCount} lot
-                            {lotsSummary.lotCount > 1 ? 's' : ''})
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Lots Details */}
-                    {lotsSummary.lots.length > 0 && (
-                      <div className='mt-2 pt-2 border-t border-gray-200'>
-                        <p className='text-[10px] font-semibold text-gray-600 mb-1'>
-                          Lots scannés:
-                        </p>
-                        <div className='space-y-1'>
-                          {lotsSummary.lots.map((lot, idx) => (
-                            <div
-                              key={idx}
-                              className='flex items-center justify-between text-[10px] text-gray-600 bg-gray-50 px-2 py-1 rounded'
-                            >
-                              <span className='font-mono'>{lot.lotNumber}</span>
-                              <span>{lot.quantity} u</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                    product={product}
+                    deliveredQuantity={line.quantity}
+                    scannedLots={lotsSummary.lots}
+                  />
                 );
               })}
             </div>

@@ -3,8 +3,6 @@ import type {
   DeliveryNoteStatus,
   PickingTaskStatus,
   DocumentType,
-  LegacySalesOrderStatus,
-  LegacyDeliveryNoteStatus,
 } from '../../data/database';
 
 export type OrderStatus =
@@ -122,7 +120,8 @@ function isDeliveryNoteStatus(
  * - Neutral (gray): DRAFT (SalesOrder), PENDING
  * - Warning (orange): IN_PREPARATION, IN_PROGRESS, PARTIALLY_SHIPPED
  * - Success (green): SHIPPED, INVOICED, COMPLETED
- * - Info (blue): CONFIRMED, DRAFT (DeliveryNote) - "Prêt à quai"
+ * - Info (blue): CONFIRMED
+ * - Success (green): READY_TO_SHIP (DeliveryNote) - "Prêt à quai" (ready state)
  * - Danger (red): CANCELLED
  */
 export function getStatusBadgeColor(
@@ -132,11 +131,12 @@ export function getStatusBadgeColor(
   bg: string;
   text: string;
 } {
-  // Special case: READY_TO_SHIP for DeliveryNote (BL) should be blue ("Prêt à quai")
+  // Special case: READY_TO_SHIP for DeliveryNote (BL) should be green ("Prêt à quai")
+  // Green because it's a "ready" state (ready to ship), not a pending state
   if (status === 'READY_TO_SHIP' && documentType === 'BL') {
     return {
-      bg: 'bg-blue-100',
-      text: 'text-blue-700',
+      bg: 'bg-green-100',
+      text: 'text-green-700',
     };
   }
 
@@ -161,21 +161,8 @@ export function getStatusBadgeColor(
     // Success (green)
     case 'INVOICED':
     case 'COMPLETED':
-      return {
-        bg: 'bg-green-100',
-        text: 'text-green-700',
-      };
-
-    // Warning (orange) - SHIPPED for DeliveryNote
     case 'SHIPPED':
-      // Special handling: if it's a DeliveryNote, use orange
-      if (documentType === 'BL') {
-        return {
-          bg: 'bg-orange-100',
-          text: 'text-orange-700',
-        };
-      }
-      // For SalesOrder, use green
+    case 'SIGNED':
       return {
         bg: 'bg-green-100',
         text: 'text-green-700',

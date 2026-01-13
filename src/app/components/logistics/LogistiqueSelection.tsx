@@ -5,12 +5,14 @@ import type { ViewType } from '../layout/NavBar';
 interface LogistiqueSelectionProps {
   onNavigateToCommandes: () => void;
   onNavigateToProducts: () => void;
+  onNavigateToOF: () => void;
   onNavigateToDashboard: () => void;
 }
 
 export default function LogistiqueSelection({
   onNavigateToCommandes,
   onNavigateToProducts,
+  onNavigateToOF,
   onNavigateToDashboard,
 }: LogistiqueSelectionProps) {
   return (
@@ -31,7 +33,7 @@ export default function LogistiqueSelection({
               Commandes
             </button>
             <button
-              onClick={onNavigateToProducts}
+              onClick={onNavigateToOF}
               className='bg-[#12895a] text-white px-6 py-5 rounded-lg font-semibold text-[16px] hover:bg-[#107a4d] transition-colors flex items-center justify-center gap-3 shadow-md'
             >
               <Package className='w-7 h-7' />

@@ -369,22 +369,9 @@ export default function App() {
       if (unifiedOrder.sourceType === 'BL') {
         const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
         if (deliveryNote) {
-          // Convert DeliveryNote to legacy Order for compatibility
-          const convertedOrder: Order = {
-            id: deliveryNote.deliveryNoteId,
-            number: deliveryNote.number,
-            type: 'BL',
-            client: deliveryNote.client,
-            deliveryDate: deliveryNote.deliveryDate,
-            items: deliveryNote.lines.map((line) => ({
-              productId: line.productId,
-              quantity: line.quantity,
-            })),
-            createdAt: deliveryNote.createdAt,
-            totalHT: 0,
-            status: deliveryNote.status,
-          };
-          setSelectedOrder(convertedOrder);
+          // Store DeliveryNote directly - DeliveryNoteDetailsPage accepts it directly
+          setSelectedDeliveryNote(deliveryNote);
+          setSelectedOrder(null); // Clear legacy order
           setShowDeliveryNoteDetails(true);
         }
       }
@@ -393,21 +380,9 @@ export default function App() {
       if (unifiedOrder.sourceType === 'BL') {
         const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
         if (deliveryNote) {
-          const convertedOrder: Order = {
-            id: deliveryNote.deliveryNoteId,
-            number: deliveryNote.number,
-            type: 'BL',
-            client: deliveryNote.client,
-            deliveryDate: deliveryNote.deliveryDate,
-            items: deliveryNote.lines.map((line) => ({
-              productId: line.productId,
-              quantity: line.quantity,
-            })),
-            createdAt: deliveryNote.createdAt,
-            totalHT: 0,
-            status: deliveryNote.status,
-          };
-          setSelectedOrder(convertedOrder);
+          // Store DeliveryNote directly - DeliveryNoteDetailsPage accepts it directly
+          setSelectedDeliveryNote(deliveryNote);
+          setSelectedOrder(null); // Clear legacy order
           setShowDeliveryNoteDetails(true);
         }
       }
@@ -420,25 +395,8 @@ export default function App() {
       const salesOrder = getSalesOrder(unifiedOrder.sourceId);
       if (salesOrder) {
         setSelectedSalesOrder(salesOrder);
-        // Find corresponding Order for backward compatibility, or create one from SalesOrder
-        let order = ordersWithCurrentDates.find(
-          (o) => o.id === unifiedOrder.sourceId
-        );
-        if (!order) {
-          // Create Order from SalesOrder for backward compatibility
-          order = {
-            id: salesOrder.salesOrderId,
-            number: salesOrder.number,
-            type: 'BC',
-            client: salesOrder.client,
-            deliveryDate: salesOrder.deliveryDate,
-            items: salesOrder.items,
-            createdAt: salesOrder.createdAt,
-            totalHT: salesOrder.totalHT,
-            status: salesOrder.status,
-          };
-        }
-        setSelectedOrder(order);
+        // No longer need to create Order - OrderDetailsPage accepts SalesOrder directly
+        setSelectedOrder(null); // Clear legacy order
         setShowOrderDetailsPage(true);
       }
     } else if (unifiedOrder.sourceType === 'BP') {
@@ -446,24 +404,9 @@ export default function App() {
     } else if (unifiedOrder.sourceType === 'BL') {
       const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
       if (deliveryNote) {
-        // Store DeliveryNote directly
+        // Store DeliveryNote directly - DeliveryNoteDetailsPage accepts it directly
         setSelectedDeliveryNote(deliveryNote);
-        // Also keep legacy Order for backward compatibility if needed
-        const convertedOrder: Order = {
-          id: deliveryNote.deliveryNoteId,
-          number: deliveryNote.number,
-          type: 'BL',
-          client: deliveryNote.client,
-          deliveryDate: deliveryNote.deliveryDate,
-          items: deliveryNote.lines.map((line) => ({
-            productId: line.productId,
-            quantity: line.quantity,
-          })),
-          createdAt: deliveryNote.createdAt,
-          totalHT: 0,
-          status: deliveryNote.status,
-        };
-        setSelectedOrder(convertedOrder);
+        setSelectedOrder(null); // Clear legacy order
         setShowDeliveryNoteDetails(true);
       }
     }
@@ -474,23 +417,8 @@ export default function App() {
     const salesOrder = getSalesOrder(salesOrderId);
     if (salesOrder) {
       setSelectedSalesOrder(salesOrder);
-      // Find corresponding Order for backward compatibility, or create one from SalesOrder
-      let order = ordersWithCurrentDates.find((o) => o.id === salesOrderId);
-      if (!order) {
-        // Create Order from SalesOrder for backward compatibility
-        order = {
-          id: salesOrder.salesOrderId,
-          number: salesOrder.number,
-          type: 'BC',
-          client: salesOrder.client,
-          deliveryDate: salesOrder.deliveryDate,
-          items: salesOrder.items,
-          createdAt: salesOrder.createdAt,
-          totalHT: salesOrder.totalHT,
-          status: salesOrder.status,
-        };
-      }
-      setSelectedOrder(order);
+      // No longer need to create Order - OrderDetailsPage accepts SalesOrder directly
+      setSelectedOrder(null); // Clear legacy order
       setShowDeliveryPreparation(false);
       setShowOrderDetailsPage(true);
     }
@@ -524,6 +452,9 @@ export default function App() {
           onNavigateToProducts={() => {
             setMode('products');
             setCurrentView('logistique');
+          }}
+          onNavigateToOF={() => {
+            setShowManufacturingOrder(true);
           }}
           onNavigateToDashboard={() => setCurrentView('dashboard')}
         />
@@ -670,24 +601,9 @@ export default function App() {
                   if (deliveryNoteId) {
                     const deliveryNote = getDeliveryNote(deliveryNoteId);
                     if (deliveryNote) {
-                      // Store DeliveryNote directly
+                      // Store DeliveryNote directly - DeliveryNoteDetailsPage accepts it directly
                       setSelectedDeliveryNote(deliveryNote);
-                      // Also keep legacy Order for backward compatibility
-                      const orderFromDeliveryNote: Order = {
-                        id: deliveryNote.deliveryNoteId,
-                        number: deliveryNote.number,
-                        type: 'BL',
-                        client: deliveryNote.client,
-                        deliveryDate: deliveryNote.deliveryDate,
-                        items: deliveryNote.lines.map((line) => ({
-                          productId: line.productId,
-                          quantity: line.quantity,
-                        })),
-                        createdAt: deliveryNote.createdAt,
-                        totalHT: 0,
-                        status: deliveryNote.status,
-                      };
-                      setSelectedOrder(orderFromDeliveryNote);
+                      setSelectedOrder(null); // Clear legacy order
                     }
                   }
                   setShowDeliveryPreparation(false);
