@@ -57,6 +57,7 @@ import OrderDetailsPage from './components/orders/OrderDetailsPage';
 import DeliveryPreparationPage from './components/delivery/DeliveryPreparationPage';
 import DeliveryNoteDetailsPage from './components/delivery/DeliveryNoteDetailsPage';
 import ManufacturingOrderModal from './components/modals/ManufacturingOrderModal';
+import ManufacturingOrderPage from './components/logistics/ManufacturingOrderPage';
 import PeriodSelectorModal from './components/modals/PeriodSelectorModal';
 import DocumentPickerModal from './components/modals/DocumentPickerModal';
 import DocumentsModal from './components/modals/DocumentsModal';
@@ -522,6 +523,16 @@ export default function App() {
             />
           </div>
         </div>
+      ) : currentView === 'manufacturing-order' ? (
+        <ManufacturingOrderPage
+          aggregatedProducts={getAggregatedProducts()}
+          onBack={() => setCurrentView('logistique-commandes')}
+          onConfirm={(quantities) => {
+            setManufacturingQuantities(quantities);
+            alert('Ordre de fabrication créé !');
+            setCurrentView('logistique-commandes');
+          }}
+        />
       ) : currentView === 'logistique-commandes' ? (
         // Vue Commandes - Sections par jour + Bouton bascule Liste/Calendrier + Filtres rapides
         <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
@@ -687,8 +698,10 @@ export default function App() {
                   <div className='flex items-center gap-2'>
                     {mode === 'products' && (
                       <button
-                        onClick={() => {
-                          setShowManufacturingOrder(true);
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setCurrentView('manufacturing-order');
                         }}
                         className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#12895a] text-white text-[12px] font-semibold hover:bg-[#107a4d] transition-colors'
                       >

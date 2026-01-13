@@ -8,7 +8,8 @@ export type ViewType =
   | 'logistique-selection'
   | 'logistique'
   | 'logistique-commandes'
-  | 'delivery-preparation';
+  | 'delivery-preparation'
+  | 'manufacturing-order';
 
 interface NavBarProps {
   currentView: ViewType;

@@ -1,0 +1,15 @@
+step impressin de BL 
+Dans le bon de commande mettre le mode de livraison et le BL.
+Pouvoir forcer le BP si on a pas tout avec modal d'alerte vous êtes sur ? reliquat
+OF selectionne tout et deselectionner
+
+logique de la quantité = produit pre labélisation + post labélisation
+
+A préparer
+
+mettre la typology dans les cards : "par nos soins", "enlèvement client", le nom du transporteur
+
+ajouter un filtre pour les status, et typology de livraison
+
+
+Produits -> Produits (OF)

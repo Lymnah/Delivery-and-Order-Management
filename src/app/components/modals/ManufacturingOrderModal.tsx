@@ -21,8 +21,8 @@ export default function ManufacturingOrderModal({
   onQuantityChange,
 }: ManufacturingOrderModalProps) {
   return (
-    <div className='absolute inset-0 backdrop-blur-[2px] flex items-center justify-center z-50'>
-      <div className='bg-white rounded-lg p-6 w-[350px] max-h-[600px] overflow-y-auto shadow-xl'>
+    <div className='fixed inset-0 backdrop-blur-[2px] flex items-center justify-center z-50 bg-black/20'>
+      <div className='bg-white rounded-lg p-6 w-[350px] max-h-[600px] overflow-y-auto shadow-xl z-50'>
         <h2 className='font-semibold text-[18px] mb-4'>Ordre de fabrication</h2>
         <p className='text-[12px] text-gray-600 mb-4'>
           Ajustez la quantité à fabriquer pour chaque produit :
