@@ -187,6 +187,13 @@ export default function OrderCard({
 
   const visual = getVisualState();
 
+  // Compute overdue state
+  const isOverdue =
+    daysUntil < 0 &&
+    isUnified &&
+    unifiedOrder?.lifecycle !== 'SHIPPED' &&
+    unifiedOrder?.lifecycle !== 'READY_TO_SHIP';
+
   // Calcul Stock
   const stockStatus: StockStatus | null | undefined = isUnified
     ? unifiedOrder?.stockStatus
@@ -204,7 +211,11 @@ export default function OrderCard({
   return (
     <div
       onClick={() => onClick(displayOrder)}
-      className={`bg-white rounded-xl border border-gray-100 shadow-sm mb-3 relative cursor-pointer hover:shadow-md transition-all active:scale-[0.99] overflow-hidden border-l-4 ${visual.borderLeft}`}
+      className={`rounded-xl border shadow-sm mb-3 relative cursor-pointer hover:shadow-md transition-all active:scale-[0.99] overflow-hidden border-l-4 ${
+        isOverdue
+          ? 'bg-red-50/30 border-red-300 border-l-red-600'
+          : `bg-white border-gray-100 ${visual.borderLeft}`
+      }`}
     >
       <div className='p-3 flex gap-3'>
         {/* --- COLONNE GAUCHE : Avatar --- */}

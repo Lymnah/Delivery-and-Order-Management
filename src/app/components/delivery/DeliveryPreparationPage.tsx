@@ -76,6 +76,10 @@ export default function DeliveryPreparationPage({
   const [isValidated, setIsValidated] = useState(false);
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const lotsPlanRef = useRef<Record<string, 1 | 2>>({});
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [manualProductId, setManualProductId] = useState('');
+  const [manualLotNumber, setManualLotNumber] = useState('');
+  const [manualQuantity, setManualQuantity] = useState(1);
 
   // Preparation state from DeliveryNote
   const [preparation, setPreparation] = useState(() => ({
@@ -410,6 +414,119 @@ export default function DeliveryPreparationPage({
                 {scanSuccess}
               </p>
             )}
+
+            {/* Manual Lot Entry Toggle */}
+            <button
+              type='button'
+              onClick={() => setShowManualEntry(!showManualEntry)}
+              className='w-full mt-2 py-2 text-[12px] font-semibold text-[#12895a] hover:underline'
+            >
+              {showManualEntry ? 'Masquer saisie manuelle' : 'Saisie manuelle (lot)'}
+            </button>
+
+            {/* Manual Lot Entry Form */}
+            {showManualEntry && (() => {
+              const unpreparedItems = orderItems.filter((item) => {
+                const remaining = getRemainingQuantity(item.productId, item.quantity);
+                return remaining > 0;
+              });
+              const selectedProduct = manualProductId
+                ? products.find((p) => p.id === manualProductId)
+                : null;
+              const selectedItem = manualProductId
+                ? orderItems.find((item) => item.productId === manualProductId)
+                : null;
+              const maxQty = selectedItem
+                ? getRemainingQuantity(selectedItem.productId, selectedItem.quantity)
+                : 0;
+
+              return (
+                <div className='mt-3 p-3 bg-gray-50 rounded-lg space-y-3'>
+                  <div>
+                    <label className='text-[11px] font-semibold text-gray-600 mb-1 block'>Produit</label>
+                    <select
+                      value={manualProductId}
+                      onChange={(e) => {
+                        setManualProductId(e.target.value);
+                        setManualQuantity(1);
+                      }}
+                      className='w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 focus:outline-none focus:border-[#12895a]'
+                    >
+                      <option value=''>Sélectionner un produit</option>
+                      {unpreparedItems.map((item) => {
+                        const product = products.find((p) => p.id === item.productId);
+                        const remaining = getRemainingQuantity(item.productId, item.quantity);
+                        return (
+                          <option key={item.productId} value={item.productId}>
+                            {product?.name || item.productId} — reste {remaining}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <div>
+                    <label className='text-[11px] font-semibold text-gray-600 mb-1 block'>N° de lot</label>
+                    <input
+                      type='text'
+                      value={manualLotNumber}
+                      onChange={(e) => setManualLotNumber(e.target.value)}
+                      placeholder='N° de lot'
+                      className='w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 focus:outline-none focus:border-[#12895a]'
+                    />
+                  </div>
+                  <div>
+                    <label className='text-[11px] font-semibold text-gray-600 mb-1 block'>
+                      Quantité {maxQty > 0 ? `(max ${maxQty})` : ''}
+                    </label>
+                    <input
+                      type='number'
+                      value={manualQuantity}
+                      onChange={(e) => setManualQuantity(Math.max(1, Math.min(maxQty, Number(e.target.value))))}
+                      min={1}
+                      max={maxQty}
+                      className='w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] text-gray-700 focus:outline-none focus:border-[#12895a]'
+                    />
+                  </div>
+                  <button
+                    type='button'
+                    disabled={!manualProductId || !manualLotNumber.trim() || manualQuantity < 1 || manualQuantity > maxQty}
+                    onClick={() => {
+                      try {
+                        scanLotOnDeliveryNote(
+                          deliveryNote.deliveryNoteId,
+                          manualProductId,
+                          manualLotNumber.trim(),
+                          manualQuantity
+                        );
+                        const updatedDeliveryNote = getDeliveryNote(deliveryNote.deliveryNoteId);
+                        if (updatedDeliveryNote) {
+                          setPreparation({
+                            scannedLots: updatedDeliveryNote.scannedLots,
+                            status: updatedDeliveryNote.status,
+                          });
+                        }
+                        setScanSuccess(
+                          `${selectedProduct?.name}: +${manualQuantity} u (Lot: ${manualLotNumber.trim()})`
+                        );
+                        setScanError(null);
+                        setManualLotNumber('');
+                        setManualQuantity(1);
+                        setManualProductId('');
+                      } catch (error) {
+                        setScanError((error as Error).message || 'Erreur lors de la saisie manuelle');
+                      }
+                    }}
+                    className={`w-full py-2 rounded-lg font-semibold text-[13px] transition-all ${
+                      !manualProductId || !manualLotNumber.trim() || manualQuantity < 1 || manualQuantity > maxQty
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-[#12895a] text-white hover:bg-[#107a4d]'
+                    }`}
+                  >
+                    Ajouter
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         )}
 

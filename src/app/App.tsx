@@ -103,6 +103,10 @@ export default function App() {
     activeMode,
     setActiveMode,
     navigatePeriod,
+    searchTerm,
+    setSearchTerm,
+    lifecycleFilter,
+    setLifecycleFilter,
   } = useFilters(now);
   const [showOrderDetailsPage, setShowOrderDetailsPage] = useState(false);
   const [showDeliveryPreparation, setShowDeliveryPreparation] = useState(false);
@@ -700,6 +704,10 @@ export default function App() {
                         activeMode={activeMode}
                         filterReferenceDate={filterReferenceDate}
                         today={now}
+                        searchTerm={searchTerm}
+                        lifecycleFilter={lifecycleFilter}
+                        onSearchChange={setSearchTerm}
+                        onLifecycleFilterChange={setLifecycleFilter}
                         onFilterChange={(filterKey) => {
                           setTimeRange(filterKey);
                           setActiveMode('period');
@@ -713,7 +721,7 @@ export default function App() {
                           if ('sourceType' in order) {
                             handleUnifiedOrderClick(order);
                           } else {
-                            openOrderDetails(order);
+                            handleUnifiedOrderClick(order as any);
                           }
                         }}
                       />

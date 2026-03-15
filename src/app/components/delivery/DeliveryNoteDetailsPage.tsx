@@ -23,6 +23,7 @@ import {
 } from '../../utils/statusHelpers';
 import OrderHeader from './OrderHeader';
 import ProductDeliveryCard from './ProductDeliveryCard';
+import PrintableBL from './PrintableBL';
 
 interface DeliveryNoteDetailsPageProps {
   deliveryNote?: DeliveryNote;
@@ -290,6 +291,9 @@ export default function DeliveryNoteDetailsPage({
           </div>
         )}
       </div>
+
+      {/* Print-only BL template */}
+      <PrintableBL deliveryNote={displayData} />
     </div>
   );
 }

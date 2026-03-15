@@ -20,7 +20,8 @@ import {
   getDaysUntil,
 } from '../../utils/dateHelpers';
 import type { TimeRange, ActiveMode } from '../../hooks/useFilters';
-import type { Order, UnifiedOrder, StockStatus } from '../../../data/database';
+import type { Order, UnifiedOrder, StockStatus, SalesOrder, DeliveryNote as DeliveryNoteType } from '../../../data/database';
+import { products } from '../../../data/database';
 import {
   getSortedUnifiedOrdersByPriority,
   calculateProjectedStatuses,
@@ -43,6 +44,10 @@ interface OrdersListViewProps {
   onNavigatePeriod: (direction: 'prev' | 'next') => void;
   onOrderClick: (order: Order | UnifiedOrder) => void;
   useUnifiedView?: boolean; // Flag to use unified view
+  searchTerm?: string;
+  lifecycleFilter?: string;
+  onSearchChange?: (value: string) => void;
+  onLifecycleFilterChange?: (value: string) => void;
 }
 
 export default function OrdersListView({
@@ -57,6 +62,10 @@ export default function OrdersListView({
   onNavigatePeriod,
   onOrderClick,
   useUnifiedView = false,
+  searchTerm = '',
+  lifecycleFilter = 'ALL',
+  onSearchChange,
+  onLifecycleFilterChange,
 }: OrdersListViewProps) {
   // Projection mode state
   const [isProjectedMode, setIsProjectedMode] = useState(false);
@@ -135,6 +144,36 @@ export default function OrdersListView({
           order.deliveryDate >= monthStart && order.deliveryDate <= monthEnd
       );
     }
+  }
+
+  // Apply lifecycle filter
+  if (useUnified && lifecycleFilter !== 'ALL') {
+    filteredUnifiedOrders = filteredUnifiedOrders.filter(
+      (order) => order.lifecycle === lifecycleFilter
+    );
+  }
+
+  // Apply search filter
+  if (useUnified && searchTerm.trim()) {
+    const term = searchTerm.trim().toLowerCase();
+    filteredUnifiedOrders = filteredUnifiedOrders.filter((order) => {
+      // Match on client name
+      if (order.client.toLowerCase().includes(term)) return true;
+      // Match on document number
+      if (order.number.toLowerCase().includes(term)) return true;
+      // Match on product names from originalData
+      const sourceItems =
+        'items' in order.originalData
+          ? (order.originalData as SalesOrder).items
+          : (order.originalData as DeliveryNoteType).lines;
+      if (sourceItems) {
+        for (const item of sourceItems) {
+          const product = products.find((p) => p.id === item.productId);
+          if (product && product.name.toLowerCase().includes(term)) return true;
+        }
+      }
+      return false;
+    });
   }
 
   // Legacy: Filter orders according to timeRange
@@ -353,6 +392,10 @@ export default function OrdersListView({
           activeMode={activeMode}
           onFilterChange={onFilterChange}
           onResetDate={onResetDate}
+          searchTerm={searchTerm}
+          onSearchChange={onSearchChange}
+          lifecycleFilter={lifecycleFilter}
+          onLifecycleFilterChange={onLifecycleFilterChange}
         />
 
         {/* Navigation par période (flèches) */}
@@ -412,8 +455,8 @@ export default function OrdersListView({
             </div>
           ) : (
             <>
-              {/* Section "En retard" - seulement si timeRange === 'all' et qu'il y a des retards */}
-              {timeRange === 'all' && overdueOrders.length > 0 && (
+              {/* Section "En retard" */}
+              {overdueOrders.length > 0 && (
                 <div className='space-y-2'>
                   <div className='flex items-center justify-between py-2'>
                     <p className='font-semibold text-[14px] text-red-700'>

@@ -14,6 +14,8 @@ export const useFilters = (initialDate: Date) => {
   const [customStartDate, setCustomStartDate] = useState<Dayjs | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Dayjs | null>(null);
   const [activeMode, setActiveMode] = useState<ActiveMode>('period');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [lifecycleFilter, setLifecycleFilter] = useState('ALL');
 
   const navigatePeriod = (direction: 'prev' | 'next') => {
     if (timeRange === 'today') {
@@ -45,6 +47,10 @@ export const useFilters = (initialDate: Date) => {
     activeMode,
     setActiveMode,
     navigatePeriod,
+    searchTerm,
+    setSearchTerm,
+    lifecycleFilter,
+    setLifecycleFilter,
   };
 };
 
