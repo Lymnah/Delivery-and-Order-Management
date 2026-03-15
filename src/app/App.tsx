@@ -468,6 +468,9 @@ export default function App() {
                 }}
                 onStatusUpdate={handleStatusUpdate}
                 onViewSalesOrder={handleViewSalesOrder}
+                onContinuePreparation={(deliveryNoteId) => {
+                  handleViewDeliveryNote(deliveryNoteId);
+                }}
               />
             ) : (
               <>
@@ -887,6 +890,9 @@ export default function App() {
                 }}
                 onStatusUpdate={handleStatusUpdate}
                 onViewSalesOrder={handleViewSalesOrder}
+                onContinuePreparation={(deliveryNoteId) => {
+                  handleViewDeliveryNote(deliveryNoteId);
+                }}
               />
             ) : null}
 

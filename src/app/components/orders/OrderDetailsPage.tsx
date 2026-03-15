@@ -7,12 +7,14 @@ import {
   Play,
   Eye,
   CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 import {
   products,
   getRemainingQuantities,
   getDeliveryNotesBySalesOrder,
   confirmSalesOrder,
+  cancelSalesOrder,
   type SalesOrder,
   type DeliveryNoteStatus,
   type SalesOrderStatus,
@@ -180,6 +182,25 @@ export default function OrderDetailsPage({
         }
       });
       onCreateManufacturingOrder(quantities);
+    }
+  };
+
+  const handleCancelSalesOrder = () => {
+    if (!effectiveSalesOrder) return;
+    if (
+      !window.confirm(
+        'Êtes-vous sûr de vouloir annuler cette commande ? Cette action est irréversible.'
+      )
+    )
+      return;
+
+    try {
+      cancelSalesOrder(effectiveSalesOrder.salesOrderId);
+      toast.success('Commande annulée');
+      onBack();
+    } catch (error) {
+      console.error('Error cancelling sales order:', error);
+      toast.error("Erreur lors de l'annulation de la commande.");
     }
   };
 
@@ -474,6 +495,18 @@ export default function OrderDetailsPage({
                     ` (${selectedProductsInOrder.length})`}
                 </button>
               )}
+
+            {/* Cancel button for DRAFT/CONFIRMED */}
+            {(effectiveSalesOrder.status === 'DRAFT' ||
+              effectiveSalesOrder.status === 'CONFIRMED') && (
+              <button
+                onClick={handleCancelSalesOrder}
+                className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-white text-red-600 border border-red-300 hover:bg-red-50'
+              >
+                <XCircle className='w-4 h-4' />
+                Annuler la commande
+              </button>
+            )}
           </>
         )}
 

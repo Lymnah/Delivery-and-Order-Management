@@ -6,11 +6,14 @@ import {
   Printer,
   Truck,
   CheckCircle2,
+  Play,
+  XCircle,
 } from 'lucide-react';
 import {
   products,
   getDeliveryNote,
   shipDeliveryNote,
+  cancelDeliveryNote,
   type DeliveryNote,
   type DeliveryNoteStatus,
 } from '../../../data/database';
@@ -30,6 +33,7 @@ interface DeliveryNoteDetailsPageProps {
     newStatus: DeliveryNoteStatus
   ) => void;
   onViewSalesOrder?: (salesOrderId: string) => void;
+  onContinuePreparation?: (deliveryNoteId: string) => void;
 }
 
 export default function DeliveryNoteDetailsPage({
@@ -38,6 +42,7 @@ export default function DeliveryNoteDetailsPage({
   onBack,
   onStatusUpdate,
   onViewSalesOrder,
+  onContinuePreparation,
 }: DeliveryNoteDetailsPageProps) {
   const effectiveDeliveryNote: DeliveryNote | null = useMemo(() => {
     if (propDeliveryNote) return propDeliveryNote;
@@ -103,6 +108,24 @@ export default function DeliveryNoteDetailsPage({
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleCancelDeliveryNote = () => {
+    if (
+      !window.confirm(
+        'Êtes-vous sûr de vouloir annuler ce bon de livraison ? Cette action est irréversible.'
+      )
+    )
+      return;
+
+    try {
+      cancelDeliveryNote(displayData.deliveryNoteId);
+      toast.success('Bon de livraison annulé');
+      onBack();
+    } catch (error) {
+      console.error('Error cancelling delivery note:', error);
+      toast.error("Erreur lors de l'annulation du bon de livraison.");
+    }
   };
 
   return (
@@ -203,6 +226,30 @@ export default function DeliveryNoteDetailsPage({
 
       {/* Fixed Footer with Actions */}
       <div className='flex-shrink-0 pt-3 pb-4 bg-white border-t border-gray-200 space-y-2 px-4'>
+        {/* IN_PREPARATION actions */}
+        {displayData.status === 'IN_PREPARATION' && (
+          <>
+            {onContinuePreparation && (
+              <button
+                onClick={() =>
+                  onContinuePreparation(displayData.deliveryNoteId)
+                }
+                className='w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d] shadow-sm'
+              >
+                <Play className='w-5 h-5' />
+                Continuer la préparation
+              </button>
+            )}
+            <button
+              onClick={handleCancelDeliveryNote}
+              className='w-full py-3 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-white text-red-600 border border-red-300 hover:bg-red-50'
+            >
+              <XCircle className='w-5 h-5' />
+              Annuler le BL
+            </button>
+          </>
+        )}
+
         {/* PREPARED -> Ship */}
         {displayData.status === 'PREPARED' && (
           <>
