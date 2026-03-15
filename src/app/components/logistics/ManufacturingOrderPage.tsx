@@ -50,8 +50,8 @@ export default function ManufacturingOrderPage({
   );
 
   return (
-    <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
-      <div className='absolute bg-white top-[87px] left-0 w-[393px] h-[691px] px-4 pt-4 overflow-y-auto pb-24'>
+    <div className='bg-white relative flex-1 w-full flex flex-col overflow-hidden'>
+      <div className='flex-1 bg-white px-4 pt-4 overflow-y-auto pb-4'>
         {/* Header */}
         <div className='mb-4'>
           <button
@@ -104,7 +104,7 @@ export default function ManufacturingOrderPage({
 
       {/* Fixed Footer with Confirm Button */}
       {hasProductsToManufacture && (
-        <div className='absolute bottom-[90px] left-0 w-[393px] px-4 py-3 bg-white border-t border-gray-200 z-40'>
+        <div className='flex-none w-full px-4 py-3 bg-white border-t border-gray-200 z-40'>
           <button
             onClick={handleConfirm}
             className='w-full bg-[#12895a] text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 hover:bg-[#107a4d] transition-colors'

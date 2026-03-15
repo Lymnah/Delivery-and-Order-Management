@@ -88,9 +88,8 @@ export default function LogistiqueCommandes({
   getOrdersForDate,
 }: LogistiqueCommandesProps) {
   return (
-    <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
       <div
-        className={`absolute bg-white top-[87px] left-0 w-[393px] h-[691px] px-4 pt-4 ${
+        className={`flex-1 bg-white px-4 pt-4 ${
           mode === 'clients' && showOrderDetailsPage && selectedOrder
             ? 'flex flex-col overflow-hidden'
             : 'overflow-y-auto pb-7'
@@ -219,7 +218,6 @@ export default function LogistiqueCommandes({
           </>
         )}
       </div>
-    </div>
   );
 }
 

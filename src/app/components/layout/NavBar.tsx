@@ -5,7 +5,6 @@ import MenuIcon from '@mui/icons-material/Menu';
 
 export type ViewType =
   | 'dashboard'
-  | 'logistique-selection'
   | 'logistique'
   | 'logistique-commandes'
   | 'delivery-preparation'
@@ -18,7 +17,7 @@ interface NavBarProps {
 
 export default function NavBar({ currentView, onViewChange }: NavBarProps) {
   return (
-    <div className='absolute bg-[#12895a] bottom-0 flex items-center justify-around left-1/2 translate-x-[-50%] w-[393px] h-[75px]'>
+    <div className='bg-[#12895a] flex items-center justify-around w-full h-[75px] flex-none'>
       <button
         onClick={() => onViewChange('dashboard')}
         className='flex flex-col items-center text-white'
@@ -35,11 +34,10 @@ export default function NavBar({ currentView, onViewChange }: NavBarProps) {
         />
       </button>
       <button
-        onClick={() => onViewChange('logistique-selection')}
+        onClick={() => onViewChange('logistique-commandes')}
         className='flex flex-col items-center text-white'
       >
         {(currentView === 'logistique' ||
-          currentView === 'logistique-selection' ||
           currentView === 'logistique-commandes' ||
           currentView === 'delivery-preparation') && (
           <div className='w-16 h-1 bg-white rounded-b-lg mb-5'></div>
@@ -49,14 +47,12 @@ export default function NavBar({ currentView, onViewChange }: NavBarProps) {
             fontSize: 28,
             marginBottom:
               currentView === 'logistique' ||
-              currentView === 'logistique-selection' ||
               currentView === 'logistique-commandes' ||
               currentView === 'delivery-preparation'
                 ? '0px'
                 : '4px',
             opacity:
               currentView === 'logistique' ||
-              currentView === 'logistique-selection' ||
               currentView === 'logistique-commandes' ||
               currentView === 'delivery-preparation'
                 ? 1

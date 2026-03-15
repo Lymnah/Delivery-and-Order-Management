@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Toaster, toast } from 'sonner';
 import {
   format,
   addDays,
@@ -28,30 +29,21 @@ import 'dayjs/locale/fr';
 import type { Dayjs } from 'dayjs';
 import {
   products,
-  orders,
   clientLogos,
-  updateOrderStatus,
-  createPickingTaskFromSalesOrder,
-  getPickingTask,
+  createDeliveryNoteFromSalesOrder,
   getSalesOrder,
   getDeliveryNote,
+  getDeliveryNotesBySalesOrder,
   type Product,
-  type Order,
   type DeliveryNoteStatus,
   type SalesOrderStatus,
-  type PickingTaskStatus,
   type SalesOrder,
-  type PickingTask,
   type DeliveryNote,
   type UnifiedOrder,
 } from '../data/database';
 import Dashboard from './Dashboard';
 import ProductCard from './components/ProductCard';
-import StatusBar from './components/layout/StatusBar';
-import TabBar from './components/layout/TabBar';
 import NavBar, { type ViewType } from './components/layout/NavBar';
-import HomeIndicator from './components/layout/HomeIndicator';
-import LogistiqueSelection from './components/logistics/LogistiqueSelection';
 import LogistiqueCommandes from './components/logistics/LogistiqueCommandes';
 import OrderDetailsPage from './components/orders/OrderDetailsPage';
 import DeliveryPreparationPage from './components/delivery/DeliveryPreparationPage';
@@ -75,7 +67,6 @@ import {
   getSectionDateLabel,
   groupOrdersByDate,
 } from './utils/dateHelpers';
-import { mapLegacyStatusToNew, isLegacyStatus } from './utils/statusHelpers';
 
 // Set dayjs locale globally
 dayjs.locale('fr');
@@ -113,15 +104,12 @@ export default function App() {
     setActiveMode,
     navigatePeriod,
   } = useFilters(now);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetailsPage, setShowOrderDetailsPage] = useState(false);
   const [showDeliveryPreparation, setShowDeliveryPreparation] = useState(false);
   const [showDeliveryNoteDetails, setShowDeliveryNoteDetails] = useState(false);
   const [selectedProductsInOrder, setSelectedProductsInOrder] = useState<
     string[]
   >([]);
-  const [selectedPickingTask, setSelectedPickingTask] =
-    useState<PickingTask | null>(null);
   const [selectedSalesOrder, setSelectedSalesOrder] =
     useState<SalesOrder | null>(null);
   const [selectedDeliveryNote, setSelectedDeliveryNote] =
@@ -132,7 +120,7 @@ export default function App() {
   const [showManufacturingOrder, setShowManufacturingOrder] = useState(false);
   const [showDocumentsModal, setShowDocumentsModal] = useState(false);
   const [showDocumentPickerModal, setShowDocumentPickerModal] = useState(false);
-  const [selectedProductOrders, setSelectedProductOrders] = useState<Order[]>(
+  const [selectedProductOrders, setSelectedProductOrders] = useState<any[]>(
     []
   );
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -200,66 +188,32 @@ export default function App() {
     return aggregatedProducts;
   };
 
-  const getOrderCard = (order: Order | UnifiedOrder) => {
-    if ('sourceType' in order) {
-      // UnifiedOrder
-      return (
-        <OrderCard
-          key={order.id}
-          unifiedOrder={order}
-          today={now}
-          onClick={(unifiedOrder: UnifiedOrder | Order) => {
-            if ('sourceType' in unifiedOrder) {
-              handleUnifiedOrderClick(unifiedOrder);
-            }
-          }}
-        />
-      );
-    } else {
-      // Legacy Order
-      return (
-        <OrderCard
-          key={order.id}
-          order={order}
-          today={now}
-          onClick={(legacyOrder: Order | UnifiedOrder) => {
-            if (!('sourceType' in legacyOrder)) {
-              openOrderDetails(legacyOrder);
-            }
-          }}
-        />
-      );
-    }
+  const getOrderCard = (order: UnifiedOrder) => {
+    return (
+      <OrderCard
+        key={order.id}
+        unifiedOrder={order}
+        today={now}
+        onClick={(unifiedOrder: UnifiedOrder) => {
+          handleUnifiedOrderClick(unifiedOrder);
+        }}
+      />
+    );
   };
 
   // Function to update order status
   const handleStatusUpdate = (
     orderId: string,
-    newStatus: DeliveryNoteStatus | SalesOrderStatus | PickingTaskStatus
+    newStatus: DeliveryNoteStatus | SalesOrderStatus
   ) => {
-    // For legacy Order, use updateOrderStatus
-    // For new types (SalesOrder, PickingTask, DeliveryNote), status is managed by backend functions
-    if (selectedOrder && selectedOrder.id === orderId) {
-      updateOrderStatus(orderId, newStatus as any);
-      setSelectedOrder({
-        ...selectedOrder,
-        status: newStatus as any,
-      });
-    }
     // Update selectedDeliveryNote if it's the same
     if (
       selectedDeliveryNote &&
       selectedDeliveryNote.deliveryNoteId === orderId
     ) {
-      // Fetch updated DeliveryNote from database (backend functions already updated it)
       const updatedDeliveryNote = getDeliveryNote(orderId);
       if (updatedDeliveryNote) {
         setSelectedDeliveryNote(updatedDeliveryNote);
-        // Also update legacy Order for backward compatibility
-        setSelectedOrder({
-          ...selectedOrder!,
-          status: newStatus as any,
-        });
       }
     }
     // Update selectedSalesOrder if it's the same
@@ -269,110 +223,51 @@ export default function App() {
         status: newStatus as SalesOrderStatus,
       });
     }
-    // Update selectedPickingTask if it's the same
-    if (selectedPickingTask && selectedPickingTask.pickingTaskId === orderId) {
-      setSelectedPickingTask({
-        ...selectedPickingTask,
-        status: newStatus as PickingTaskStatus,
-      });
-    }
-    // Force re-render by updating orders list
-    // The useOrders hook will handle this automatically
   };
 
-  const openOrderDetails = (order: Order) => {
-    setSelectedOrder(order);
-    setSelectedProductsInOrder([]);
-    setShowOrderDetailsPage(false);
-    setShowDeliveryPreparation(false);
-    setShowDeliveryNoteDetails(false);
-    setSelectedPickingTask(null);
-    setSelectedSalesOrder(null);
-
-    // Try to find corresponding SalesOrder if BC
-    if (order.type === 'BC') {
-      const salesOrder = getSalesOrder(order.id);
-      if (salesOrder) {
-        setSelectedSalesOrder(salesOrder);
-      }
-      setShowOrderDetailsPage(true);
-    } else if (order.type === 'BL') {
-      // BL: Navigate based on status (support both legacy and new statuses)
-      const status = order.status as string;
-
-      // Map legacy status to new if needed
-      const mappedStatus = isLegacyStatus(status)
-        ? mapLegacyStatusToNew(status, 'BL')
-        : status;
-
-      if (mappedStatus === 'READY_TO_SHIP' || status === 'READY_TO_SHIP') {
-        setShowOrderDetailsPage(true);
-      } else if (
-        mappedStatus === 'SHIPPED' ||
-        status === 'SHIPPED' ||
-        status === 'IN_PROGRESS'
-      ) {
-        setShowDeliveryPreparation(true);
-      } else if (
-        mappedStatus === 'SHIPPED' ||
-        mappedStatus === 'INVOICED' ||
-        status === 'SHIPPED' ||
-        status === 'INVOICED'
-      ) {
-        setShowDeliveryNoteDetails(true);
-      } else {
-        // Default fallback
-        setShowOrderDetailsPage(true);
-      }
-    }
-  };
-
-  // Handle creating BP from BC
-  const handleCreatePickingTask = (salesOrderId: string) => {
+  // Handle creating BL from BC
+  const handleCreateDeliveryNote = (salesOrderId: string) => {
     try {
-      const pickingTask = createPickingTaskFromSalesOrder(salesOrderId);
-      setSelectedPickingTask(pickingTask);
+      const deliveryNote = createDeliveryNoteFromSalesOrder(salesOrderId);
+      setSelectedDeliveryNote(deliveryNote);
       setShowOrderDetailsPage(false);
       setShowDeliveryPreparation(true);
       setCurrentView('delivery-preparation');
     } catch (error) {
-      console.error('Error creating picking task:', error);
-      // Could show error toast here
+      console.error('Error creating delivery note:', error);
+      toast.error('Erreur lors de la création du bon de livraison.');
     }
   };
 
-  // Handle viewing active picking task
-  const handleViewPickingTask = (pickingTaskId: string) => {
-    const pickingTask = getPickingTask(pickingTaskId);
-    if (pickingTask) {
-      setSelectedPickingTask(pickingTask);
+  // Handle viewing active delivery note preparation
+  const handleViewDeliveryNote = (deliveryNoteId: string) => {
+    const deliveryNote = getDeliveryNote(deliveryNoteId);
+    if (deliveryNote) {
+      setSelectedDeliveryNote(deliveryNote);
       setShowOrderDetailsPage(false);
       setShowDeliveryNoteDetails(false);
       setShowDeliveryPreparation(true);
-      // Stay in logistique-commandes view, showDeliveryPreparation will handle the display
     }
   };
 
   // Handle unified order action (from Master List)
   const handleUnifiedOrderAction = (unifiedOrder: UnifiedOrder) => {
     if (unifiedOrder.lifecycle === 'TO_PREPARE') {
-      // BC: Create BP and prepare
+      // BC: Create BL and prepare
       if (unifiedOrder.sourceType === 'BC') {
-        handleCreatePickingTask(unifiedOrder.sourceId);
+        handleCreateDeliveryNote(unifiedOrder.sourceId);
       }
     } else if (unifiedOrder.lifecycle === 'IN_PREPARATION') {
-      // BP: Continue picking
-      if (unifiedOrder.sourceType === 'BP') {
-        handleViewPickingTask(unifiedOrder.sourceId);
+      // BL: Continue preparation
+      if (unifiedOrder.sourceType === 'BL') {
+        handleViewDeliveryNote(unifiedOrder.sourceId);
       }
     } else if (unifiedOrder.lifecycle === 'READY_TO_SHIP') {
-      // BL: View delivery note details
+      // BL: View delivery note details (prepared)
       if (unifiedOrder.sourceType === 'BL') {
         const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
         if (deliveryNote) {
-          // Store DeliveryNote directly - DeliveryNoteDetailsPage accepts it directly
           setSelectedDeliveryNote(deliveryNote);
-          setSelectedOrder(null); // Clear legacy order
           setShowDeliveryNoteDetails(true);
         }
       }
@@ -381,9 +276,7 @@ export default function App() {
       if (unifiedOrder.sourceType === 'BL') {
         const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
         if (deliveryNote) {
-          // Store DeliveryNote directly - DeliveryNoteDetailsPage accepts it directly
           setSelectedDeliveryNote(deliveryNote);
-          setSelectedOrder(null); // Clear legacy order
           setShowDeliveryNoteDetails(true);
         }
       }
@@ -396,19 +289,19 @@ export default function App() {
       const salesOrder = getSalesOrder(unifiedOrder.sourceId);
       if (salesOrder) {
         setSelectedSalesOrder(salesOrder);
-        // No longer need to create Order - OrderDetailsPage accepts SalesOrder directly
-        setSelectedOrder(null); // Clear legacy order
         setShowOrderDetailsPage(true);
       }
-    } else if (unifiedOrder.sourceType === 'BP') {
-      handleViewPickingTask(unifiedOrder.sourceId);
     } else if (unifiedOrder.sourceType === 'BL') {
       const deliveryNote = getDeliveryNote(unifiedOrder.sourceId);
       if (deliveryNote) {
-        // Store DeliveryNote directly - DeliveryNoteDetailsPage accepts it directly
-        setSelectedDeliveryNote(deliveryNote);
-        setSelectedOrder(null); // Clear legacy order
-        setShowDeliveryNoteDetails(true);
+        if (deliveryNote.status === 'IN_PREPARATION') {
+          // Go to preparation page
+          handleViewDeliveryNote(unifiedOrder.sourceId);
+        } else {
+          // Go to details page (PREPARED or SHIPPED)
+          setSelectedDeliveryNote(deliveryNote);
+          setShowDeliveryNoteDetails(true);
+        }
       }
     }
   };
@@ -427,101 +320,53 @@ export default function App() {
 
   const handleDashboardNavigate = (module: string) => {
     if (module === 'logistique') {
-      setCurrentView('logistique-selection');
+      setMode('clients');
+      setView('list');
+      setTimeRange('all');
+      setFilterReferenceDate(now);
+      setCurrentView('logistique-commandes');
     }
     // Autres modules peuvent être gérés ici
   };
 
   return (
-    <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
-      <StatusBar />
-      <TabBar />
-      <HomeIndicator />
-      <NavBar currentView={currentView} onViewChange={setCurrentView} />
+    <div className='bg-white relative max-w-lg w-full h-dvh mx-auto flex flex-col overflow-hidden shadow-xl'>
 
       {currentView === 'dashboard' ? (
         <Dashboard onNavigate={handleDashboardNavigate} />
-      ) : currentView === 'logistique-selection' ? (
-        <LogistiqueSelection
-          onNavigateToCommandes={() => {
-            setMode('clients');
-            setView('list');
-            setTimeRange('all');
-            setFilterReferenceDate(now);
-            setCurrentView('logistique-commandes');
-          }}
-          onNavigateToProducts={() => {
-            setMode('products');
-            setCurrentView('logistique');
-          }}
-          onNavigateToOF={() => {
-            setShowManufacturingOrder(true);
-          }}
-          onNavigateToDashboard={() => setCurrentView('dashboard')}
-        />
-      ) : currentView === 'delivery-preparation' &&
-        (selectedPickingTask || selectedOrder) ? (
-        <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
-          <div className='absolute bg-white top-[87px] left-0 w-[393px] h-[691px] flex flex-col overflow-hidden'>
+      ) : currentView === 'delivery-preparation' && selectedDeliveryNote ? (
+        <div className='flex-1 flex flex-col overflow-hidden'>
             <DeliveryPreparationPage
-              pickingTask={selectedPickingTask || undefined}
-              order={
-                selectedPickingTask ? undefined : selectedOrder || undefined
-              }
+              deliveryNote={selectedDeliveryNote}
               onBack={() => {
                 setShowDeliveryPreparation(false);
-                setSelectedPickingTask(null);
                 setCurrentView('logistique-commandes');
-                if (selectedSalesOrder || selectedOrder) {
+                if (selectedSalesOrder) {
                   setShowOrderDetailsPage(true);
                 }
               }}
               onValidationComplete={(deliveryNoteId) => {
-                // After validation, navigate to delivery note details page
-                // The BL was created automatically by completePickingTask()
                 if (deliveryNoteId) {
-                  // Get the created DeliveryNote
-                  const deliveryNote = getDeliveryNote(deliveryNoteId);
-                  if (deliveryNote) {
-                    // Store DeliveryNote directly
-                    setSelectedDeliveryNote(deliveryNote);
-                    // Also keep legacy Order for backward compatibility
-                    const orderFromDeliveryNote: Order = {
-                      id: deliveryNote.deliveryNoteId,
-                      number: deliveryNote.number,
-                      type: 'BL',
-                      client: deliveryNote.client,
-                      deliveryDate: deliveryNote.deliveryDate,
-                      items: deliveryNote.lines.map((line) => ({
-                        productId: line.productId,
-                        quantity: line.quantity,
-                      })),
-                      createdAt: deliveryNote.createdAt,
-                      totalHT: 0, // Calculate if needed
-                      status: deliveryNote.status,
-                    };
-                    setSelectedOrder(orderFromDeliveryNote);
+                  const updatedNote = getDeliveryNote(deliveryNoteId);
+                  if (updatedNote) {
+                    setSelectedDeliveryNote(updatedNote);
                   }
                 }
                 setShowDeliveryPreparation(false);
-                setSelectedPickingTask(null);
                 setShowDeliveryNoteDetails(true);
                 setCurrentView('logistique-commandes');
               }}
               onStatusUpdate={handleStatusUpdate}
               onRedirectToStockCheck={() => {
                 setShowDeliveryPreparation(false);
-                setSelectedPickingTask(null);
                 setShowOrderDetailsPage(true);
               }}
               onRedirectToDetails={() => {
                 setShowDeliveryPreparation(false);
-                setSelectedPickingTask(null);
                 setShowDeliveryNoteDetails(true);
               }}
               onViewSalesOrder={handleViewSalesOrder}
             />
-          </div>
         </div>
       ) : currentView === 'manufacturing-order' ? (
         <ManufacturingOrderPage
@@ -535,12 +380,11 @@ export default function App() {
         />
       ) : currentView === 'logistique-commandes' ? (
         // Vue Commandes - Sections par jour + Bouton bascule Liste/Calendrier + Filtres rapides
-        <div className='bg-white relative w-[393px] h-[852px] mx-auto overflow-hidden'>
           <div
-            className={`absolute bg-white top-[87px] left-0 w-[393px] h-[691px] px-4 pt-4 ${
+            className={`flex-1 bg-white px-4 pt-4 ${
               mode === 'clients' &&
               showOrderDetailsPage &&
-              (selectedSalesOrder || selectedOrder)
+              selectedSalesOrder
                 ? 'flex flex-col overflow-hidden'
                 : 'overflow-y-auto pb-7'
             }`}
@@ -548,16 +392,12 @@ export default function App() {
             {/* Order Details Page - Full page view */}
             {mode === 'clients' &&
             showOrderDetailsPage &&
-            (selectedSalesOrder || selectedOrder) ? (
+            selectedSalesOrder ? (
               <OrderDetailsPage
-                salesOrder={selectedSalesOrder || undefined}
-                order={
-                  selectedSalesOrder ? undefined : selectedOrder || undefined
-                }
+                salesOrder={selectedSalesOrder}
                 selectedProductsInOrder={selectedProductsInOrder}
                 onBack={() => {
                   setShowOrderDetailsPage(false);
-                  setSelectedOrder(null);
                   setSelectedSalesOrder(null);
                   setSelectedProductsInOrder([]);
                 }}
@@ -569,11 +409,8 @@ export default function App() {
                   );
                 }}
                 onSelectAll={() => {
-                  const items = selectedSalesOrder
-                    ? selectedSalesOrder.items
-                    : selectedOrder!.items;
                   setSelectedProductsInOrder(
-                    items.map((item) => item.productId)
+                    selectedSalesOrder.items.map((item) => item.productId)
                   );
                 }}
                 onDeselectAll={() => {
@@ -584,83 +421,59 @@ export default function App() {
                   setShowOrderDetailsPage(false);
                   setShowManufacturingOrder(true);
                 }}
-                onCreatePickingTask={handleCreatePickingTask}
-                onViewPickingTask={handleViewPickingTask}
-                onPrepareDelivery={() => {
-                  setShowOrderDetailsPage(false);
-                  setShowDeliveryPreparation(true);
-                  setCurrentView('delivery-preparation');
-                }}
+                onCreateDeliveryNote={handleCreateDeliveryNote}
+                onViewDeliveryNote={handleViewDeliveryNote}
                 onStatusUpdate={handleStatusUpdate}
               />
             ) : mode === 'clients' &&
               showDeliveryPreparation &&
-              (selectedPickingTask || selectedOrder) ? (
+              selectedDeliveryNote ? (
               <DeliveryPreparationPage
-                pickingTask={selectedPickingTask || undefined}
-                order={
-                  selectedPickingTask ? undefined : selectedOrder || undefined
-                }
+                deliveryNote={selectedDeliveryNote}
                 onBack={() => {
                   setShowDeliveryPreparation(false);
-                  setSelectedPickingTask(null);
                   setShowOrderDetailsPage(false);
-                  setSelectedOrder(null);
                   setSelectedSalesOrder(null);
                 }}
                 onValidationComplete={(deliveryNoteId) => {
                   if (deliveryNoteId) {
-                    const deliveryNote = getDeliveryNote(deliveryNoteId);
-                    if (deliveryNote) {
-                      // Store DeliveryNote directly - DeliveryNoteDetailsPage accepts it directly
-                      setSelectedDeliveryNote(deliveryNote);
-                      setSelectedOrder(null); // Clear legacy order
+                    const updatedNote = getDeliveryNote(deliveryNoteId);
+                    if (updatedNote) {
+                      setSelectedDeliveryNote(updatedNote);
                     }
                   }
                   setShowDeliveryPreparation(false);
-                  setSelectedPickingTask(null);
                   setShowDeliveryNoteDetails(true);
                 }}
                 onStatusUpdate={handleStatusUpdate}
                 onRedirectToStockCheck={() => {
                   setShowDeliveryPreparation(false);
-                  setSelectedPickingTask(null);
                   setShowOrderDetailsPage(true);
                 }}
                 onRedirectToDetails={() => {
                   setShowDeliveryPreparation(false);
-                  setSelectedPickingTask(null);
                   setShowDeliveryNoteDetails(true);
                 }}
                 onViewSalesOrder={handleViewSalesOrder}
               />
             ) : mode === 'clients' &&
               showDeliveryNoteDetails &&
-              (selectedDeliveryNote || selectedOrder) ? (
+              selectedDeliveryNote ? (
               <DeliveryNoteDetailsPage
-                deliveryNote={selectedDeliveryNote || undefined}
-                order={
-                  selectedDeliveryNote ? undefined : selectedOrder || undefined
-                }
-                deliveryNoteId={
-                  selectedDeliveryNote?.deliveryNoteId || selectedOrder?.id
-                }
+                deliveryNote={selectedDeliveryNote}
+                deliveryNoteId={selectedDeliveryNote.deliveryNoteId}
                 onBack={() => {
                   setShowDeliveryNoteDetails(false);
                   setSelectedDeliveryNote(null);
-                  setSelectedOrder(null);
                 }}
                 onStatusUpdate={handleStatusUpdate}
-                onViewPickingTask={(pickingTaskId) => {
-                  handleViewPickingTask(pickingTaskId);
-                }}
                 onViewSalesOrder={handleViewSalesOrder}
               />
             ) : (
               <>
                 {/* Back button */}
                 <button
-                  onClick={() => setCurrentView('logistique-selection')}
+                  onClick={() => setCurrentView('dashboard')}
                   className='flex items-center gap-2 text-[#12895a] mb-3 -ml-2 px-2 py-1 hover:bg-gray-100 rounded transition-all'
                 >
                   <ChevronLeft className='w-5 h-5' />
@@ -1022,24 +835,19 @@ export default function App() {
               </>
             )}
           </div>
-        </div>
       ) : (
         <>
           {/* Main Content - Plus de header fixe, on gagne de l'espace */}
-          <div className='absolute bg-white top-[87px] left-0 w-[393px] h-[691px] overflow-y-auto px-4 pt-4 pb-7'>
+          <div className='flex-1 bg-white overflow-y-auto px-4 pt-4 pb-7'>
             {/* Order Details Page - Full page view */}
             {mode === 'clients' &&
             showOrderDetailsPage &&
-            (selectedSalesOrder || selectedOrder) ? (
+            selectedSalesOrder ? (
               <OrderDetailsPage
-                salesOrder={selectedSalesOrder || undefined}
-                order={
-                  selectedSalesOrder ? undefined : selectedOrder || undefined
-                }
+                salesOrder={selectedSalesOrder}
                 selectedProductsInOrder={selectedProductsInOrder}
                 onBack={() => {
                   setShowOrderDetailsPage(false);
-                  setSelectedOrder(null);
                   setSelectedSalesOrder(null);
                   setSelectedProductsInOrder([]);
                 }}
@@ -1051,11 +859,8 @@ export default function App() {
                   );
                 }}
                 onSelectAll={() => {
-                  const items = selectedSalesOrder
-                    ? selectedSalesOrder.items
-                    : selectedOrder!.items;
                   setSelectedProductsInOrder(
-                    items.map((item) => item.productId)
+                    selectedSalesOrder.items.map((item) => item.productId)
                   );
                 }}
                 onDeselectAll={() => {
@@ -1066,35 +871,21 @@ export default function App() {
                   setShowOrderDetailsPage(false);
                   setShowManufacturingOrder(true);
                 }}
-                onCreatePickingTask={handleCreatePickingTask}
-                onViewPickingTask={handleViewPickingTask}
-                onPrepareDelivery={() => {
-                  setShowOrderDetailsPage(false);
-                  setShowDeliveryPreparation(true);
-                  setCurrentView('delivery-preparation');
-                }}
+                onCreateDeliveryNote={handleCreateDeliveryNote}
+                onViewDeliveryNote={handleViewDeliveryNote}
                 onStatusUpdate={handleStatusUpdate}
               />
             ) : mode === 'clients' &&
               showDeliveryNoteDetails &&
-              (selectedDeliveryNote || selectedOrder) ? (
+              selectedDeliveryNote ? (
               <DeliveryNoteDetailsPage
-                deliveryNote={selectedDeliveryNote || undefined}
-                order={
-                  selectedDeliveryNote ? undefined : selectedOrder || undefined
-                }
-                deliveryNoteId={
-                  selectedDeliveryNote?.deliveryNoteId || selectedOrder?.id
-                }
+                deliveryNote={selectedDeliveryNote}
+                deliveryNoteId={selectedDeliveryNote.deliveryNoteId}
                 onBack={() => {
                   setShowDeliveryNoteDetails(false);
                   setSelectedDeliveryNote(null);
-                  setSelectedOrder(null);
                 }}
                 onStatusUpdate={handleStatusUpdate}
-                onViewPickingTask={(pickingTaskId) => {
-                  handleViewPickingTask(pickingTaskId);
-                }}
                 onViewSalesOrder={handleViewSalesOrder}
               />
             ) : null}
@@ -1102,7 +893,7 @@ export default function App() {
             {/* Back button to return to selection */}
             {!showOrderDetailsPage && (
               <button
-                onClick={() => setCurrentView('logistique-selection')}
+                onClick={() => setCurrentView('dashboard')}
                 className='flex items-center gap-2 text-[#12895a] mb-2 -ml-2 px-2 py-1 hover:bg-gray-100 rounded transition-all'
               >
                 <ChevronLeft className='w-5 h-5' />
@@ -1404,7 +1195,7 @@ export default function App() {
           {currentView === 'logistique' &&
             mode === 'products' &&
             getAggregatedProducts().some((p) => p.deficit > 0) && (
-              <div className='absolute bottom-[75px] left-0 w-[393px] px-4 py-3 bg-white border-t border-gray-200 z-40'>
+              <div className='w-full px-4 py-3 bg-white border-t border-gray-200 z-40 flex-none'>
                 <button
                   onClick={() => setShowManufacturingOrder(true)}
                   className='w-full bg-[#12895a] text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2'
@@ -1416,6 +1207,8 @@ export default function App() {
             )}
         </>
       )}
+      <NavBar currentView={currentView} onViewChange={setCurrentView} />
+      <Toaster />
     </div>
   );
 }

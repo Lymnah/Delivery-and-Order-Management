@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { toast } from 'sonner';
 import {
   ChevronLeft,
   Package,
@@ -9,12 +10,10 @@ import {
 } from 'lucide-react';
 import {
   products,
-  clientLogos,
   getRemainingQuantities,
-  getPickingTasksBySalesOrder,
+  getDeliveryNotesBySalesOrder,
   confirmSalesOrder,
   type SalesOrder,
-  type Order,
   type DeliveryNoteStatus,
   type SalesOrderStatus,
 } from '../../../data/database';
@@ -22,26 +21,20 @@ import ProductCardCompact from '../ProductCardCompact';
 import OrderHeader from '../delivery/OrderHeader';
 import {
   getStatusBadgeColor,
-  getStatusLabel,
   getSalesOrderStatusLabelFr,
-  mapLegacyStatusToNew,
-  isLegacyStatus,
 } from '../../utils/statusHelpers';
 
 interface OrderDetailsPageProps {
-  // Support both SalesOrder (new) and Order (legacy) for backward compatibility
   salesOrder?: SalesOrder;
-  order?: Order; // Legacy support
   selectedProductsInOrder: string[];
   onBack: () => void;
   onSelectionToggle: (productId: string) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onCreateManufacturingOrder: (quantities: Record<string, number>) => void;
-  onCreatePickingTask?: (salesOrderId: string) => void; // New: Create BP from BC
-  onViewPickingTask?: (pickingTaskId: string) => void; // New: View active BP
-  onViewDeliveryNotes?: (salesOrderId: string) => void; // New: View BLs
-  onPrepareDelivery?: () => void; // Legacy: for BL
+  onCreateDeliveryNote?: (salesOrderId: string) => void;
+  onViewDeliveryNote?: (deliveryNoteId: string) => void;
+  onViewDeliveryNotes?: (salesOrderId: string) => void;
   onStatusUpdate?: (
     orderId: string,
     newStatus: DeliveryNoteStatus | SalesOrderStatus
@@ -50,56 +43,21 @@ interface OrderDetailsPageProps {
 
 export default function OrderDetailsPage({
   salesOrder,
-  order: legacyOrder,
   selectedProductsInOrder,
   onBack,
   onSelectionToggle,
   onSelectAll,
   onDeselectAll,
   onCreateManufacturingOrder,
-  onCreatePickingTask,
-  onViewPickingTask,
+  onCreateDeliveryNote,
+  onViewDeliveryNote,
   onViewDeliveryNotes,
-  onPrepareDelivery,
   onStatusUpdate,
 }: OrderDetailsPageProps) {
-  // Support both new SalesOrder and legacy Order
-  const isSalesOrder = !!salesOrder;
-  const isLegacyOrder = !!legacyOrder;
-
-  // For backward compatibility: if legacy Order with type BC, treat as SalesOrder
-  // This allows gradual migration
-  const effectiveSalesOrder: SalesOrder | null = useMemo(() => {
-    if (salesOrder) return salesOrder;
-    if (legacyOrder && legacyOrder.type === 'BC') {
-      // Convert legacy Order to SalesOrder format
-      const statusMap: Record<string, SalesOrderStatus> = {
-        Brouillon: 'DRAFT',
-        Confirmé: 'CONFIRMED',
-        'Partiellement livré': 'PARTIALLY_SHIPPED',
-        Livré: 'SHIPPED',
-        Clos: 'INVOICED',
-      };
-      return {
-        salesOrderId: legacyOrder.id,
-        number: legacyOrder.number,
-        client: legacyOrder.client,
-        deliveryDate: legacyOrder.deliveryDate,
-        items: legacyOrder.items,
-        createdAt: legacyOrder.createdAt,
-        totalHT: legacyOrder.totalHT,
-        status: statusMap[legacyOrder.status as string] || 'DRAFT',
-        disputeStatus: legacyOrder.disputeStatus,
-      };
-    }
-    return null;
-  }, [salesOrder, legacyOrder]);
-
-  // Legacy BL support
-  const isLegacyBL = isLegacyOrder && legacyOrder.type === 'BL';
+  const effectiveSalesOrder = salesOrder || null;
 
   // Check if document type is valid
-  if (!effectiveSalesOrder && !isLegacyBL) {
+  if (!effectiveSalesOrder) {
     return (
       <div className='flex flex-col h-full min-h-0 items-center justify-center p-4'>
         <p className='text-red-600 font-semibold mb-2'>Accès non autorisé</p>
@@ -116,21 +74,14 @@ export default function OrderDetailsPage({
     );
   }
 
-  // Get order data (SalesOrder or legacy Order)
-  const orderData = effectiveSalesOrder || legacyOrder!;
-  const orderItems = effectiveSalesOrder
-    ? effectiveSalesOrder.items
-    : legacyOrder!.items;
+  // Get order data
+  const orderData = effectiveSalesOrder;
+  const orderItems = effectiveSalesOrder.items;
 
   // Calculate read-only mode
-  // For SalesOrder: read-only if INVOICED or CANCELLED
-  // For legacy BL: read-only if status !== 'À préparer' && status !== 'En préparation'
-  const isReadOnly = effectiveSalesOrder
-    ? effectiveSalesOrder.status === 'INVOICED' ||
-      effectiveSalesOrder.status === 'CANCELLED'
-    : isLegacyBL &&
-      legacyOrder!.status !== 'À préparer' &&
-      legacyOrder!.status !== 'En préparation';
+  const isReadOnly =
+    effectiveSalesOrder.status === 'INVOICED' ||
+    effectiveSalesOrder.status === 'CANCELLED';
 
   // Calculate stock availability
   const allProductsOk = orderItems.every((item) => {
@@ -139,14 +90,8 @@ export default function OrderDetailsPage({
   });
 
   // Get status colors and label
-  const statusColors = getStatusBadgeColor(
-    effectiveSalesOrder
-      ? effectiveSalesOrder.status
-      : (legacyOrder!.status as any)
-  );
-  const statusLabel = effectiveSalesOrder
-    ? getSalesOrderStatusLabelFr(effectiveSalesOrder.status)
-    : getStatusLabel(legacyOrder!.status as any);
+  const statusColors = getStatusBadgeColor(effectiveSalesOrder.status);
+  const statusLabel = getSalesOrderStatusLabelFr(effectiveSalesOrder.status);
 
   // Calculate remaining quantities for SalesOrder
   const remainingQuantities = useMemo(() => {
@@ -156,12 +101,14 @@ export default function OrderDetailsPage({
     return null;
   }, [effectiveSalesOrder]);
 
-  // Get active picking tasks for SalesOrder
-  const activePickingTasks = useMemo(() => {
+  // Get active delivery notes for SalesOrder
+  const activeDeliveryNotes = useMemo(() => {
     if (effectiveSalesOrder) {
-      return getPickingTasksBySalesOrder(
+      return getDeliveryNotesBySalesOrder(
         effectiveSalesOrder.salesOrderId
-      ).filter((pt) => pt.status === 'PENDING' || pt.status === 'IN_PROGRESS');
+      ).filter(
+        (dn) => dn.status === 'IN_PREPARATION' || dn.status === 'PREPARED'
+      );
     }
     return [];
   }, [effectiveSalesOrder]);
@@ -190,44 +137,33 @@ export default function OrderDetailsPage({
           onStatusUpdate(effectiveSalesOrder.salesOrderId, 'CONFIRMED');
         }
         // Force re-render by updating the effectiveSalesOrder
-        // The component will re-render and show the "Créer un BP" button
+        // The component will re-render and show the "Créer un BL" button
       } catch (error) {
         console.error('Error confirming sales order:', error);
-        // TODO: Show error toast/alert to user
+        toast.error('Erreur lors de la confirmation de la commande.');
       }
     }
   };
 
-  const handleCreatePickingTask = () => {
-    if (effectiveSalesOrder && onCreatePickingTask) {
-      onCreatePickingTask(effectiveSalesOrder.salesOrderId);
+  const handleCreateDeliveryNote = () => {
+    if (effectiveSalesOrder && onCreateDeliveryNote) {
+      onCreateDeliveryNote(effectiveSalesOrder.salesOrderId);
     }
   };
 
-  const handleViewPickingTask = () => {
+  const handleViewDeliveryNote = () => {
     if (
       effectiveSalesOrder &&
-      activePickingTasks.length > 0 &&
-      onViewPickingTask
+      activeDeliveryNotes.length > 0 &&
+      onViewDeliveryNote
     ) {
-      // If multiple active BP, take the first one (could be improved with selector)
-      onViewPickingTask(activePickingTasks[0].pickingTaskId);
+      onViewDeliveryNote(activeDeliveryNotes[0].deliveryNoteId);
     }
   };
 
   const handleViewDeliveryNotes = () => {
     if (effectiveSalesOrder && onViewDeliveryNotes) {
       onViewDeliveryNotes(effectiveSalesOrder.salesOrderId);
-    }
-  };
-
-  // Legacy BL: Prepare delivery
-  const handlePrepareDelivery = () => {
-    if (isLegacyBL && allProductsOk && onPrepareDelivery && onStatusUpdate) {
-      // Update status to READY_TO_SHIP (mapped from legacy 'En préparation')
-      onStatusUpdate(legacyOrder!.id, 'READY_TO_SHIP' as DeliveryNoteStatus);
-      // Navigate to delivery preparation page
-      onPrepareDelivery();
     }
   };
 
@@ -263,9 +199,7 @@ export default function OrderDetailsPage({
         {/* Order Header */}
         <OrderHeader
           client={orderData.client}
-          documentNumber={`${orderData.number} • ${
-            effectiveSalesOrder ? 'BC' : legacyOrder!.type
-          }`}
+          documentNumber={`${orderData.number} • BC`}
           statusBadge={{
             label: statusLabel,
             bgColor: statusColors.bg,
@@ -466,29 +400,27 @@ export default function OrderDetailsPage({
               </button>
             )}
 
-            {/* BC CONFIRMED: Create BP and prepare */}
+            {/* BC CONFIRMED: Create BL and prepare */}
             {effectiveSalesOrder.status === 'CONFIRMED' && !isReadOnly && (
               <button
-                onClick={handleCreatePickingTask}
+                onClick={handleCreateDeliveryNote}
                 className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
               >
                 <Package className='w-4 h-4' />
-                Créer un BP et préparer
+                Créer un BL et préparer
               </button>
             )}
 
-            {/* BC IN_PREPARATION: View active preparation */}
+            {/* BC IN_PREPARATION: View active delivery note */}
             {effectiveSalesOrder.status === 'IN_PREPARATION' &&
-              activePickingTasks.length > 0 &&
+              activeDeliveryNotes.length > 0 &&
               !isReadOnly && (
                 <button
-                  onClick={handleViewPickingTask}
+                  onClick={handleViewDeliveryNote}
                   className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
                 >
                   <Play className='w-4 h-4' />
-                  {activePickingTasks.length === 1
-                    ? 'Voir la préparation en cours'
-                    : `Voir la préparation (${activePickingTasks.length} BP actifs)`}
+                  Voir le BL en préparation
                 </button>
               )}
 
@@ -496,7 +428,7 @@ export default function OrderDetailsPage({
             {effectiveSalesOrder.status === 'PARTIALLY_SHIPPED' &&
               !isReadOnly && (
                 <button
-                  onClick={handleCreatePickingTask}
+                  onClick={handleCreateDeliveryNote}
                   className='w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d]'
                 >
                   <Package className='w-4 h-4' />
@@ -545,57 +477,6 @@ export default function OrderDetailsPage({
           </>
         )}
 
-        {/* ===== Legacy BL Actions ===== */}
-        {isLegacyBL && (
-          <>
-            {/* Prepare delivery button - only visible if BL with status READY_TO_SHIP */}
-            {(() => {
-              const status = legacyOrder!.status as string;
-              const isReady = isLegacyStatus(status)
-                ? mapLegacyStatusToNew(status, 'BL') === 'READY_TO_SHIP'
-                : status === 'READY_TO_SHIP';
-              return isReady && !isReadOnly;
-            })() && (
-              <button
-                disabled={!allProductsOk}
-                onClick={handlePrepareDelivery}
-                className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
-                  allProductsOk
-                    ? 'bg-[#12895a] text-white hover:bg-[#107a4d] cursor-pointer'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                <Package className='w-4 h-4' />
-                Préparer la livraison
-              </button>
-            )}
-
-            {/* Create production order button - hidden in read-only mode */}
-            {!isReadOnly && (
-              <button
-                disabled={selectedProductsInOrder.length === 0}
-                onClick={handleCreateManufacturingOrder}
-                className={`w-full py-2.5 rounded-lg font-semibold flex items-center justify-center gap-2 text-[14px] transition-all ${
-                  selectedProductsInOrder.length > 0
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                <Plus className='w-4 h-4' />
-                Créer un ordre de fabrication
-                {selectedProductsInOrder.length > 0 &&
-                  ` (${selectedProductsInOrder.length})`}
-              </button>
-            )}
-
-            {/* Info message for read-only statuses */}
-            {isReadOnly && legacyOrder!.status !== 'À préparer' && (
-              <p className='text-center text-[12px] text-gray-500 py-2'>
-                Aucune action disponible à ce statut
-              </p>
-            )}
-          </>
-        )}
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import {
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { products } from '../../data/database';
-import type { Order, UnifiedOrder, SalesOrder, PickingTask, DeliveryNote } from '../../data/database';
+import type { Order, UnifiedOrder, SalesOrder, DeliveryNote } from '../../data/database';
 import { getUnifiedOrdersForAtelier } from '../utils/unifiedOrderHelpers';
 import { getOrdersWithCurrentDates } from '../utils/orderHelpers';
 
@@ -44,8 +44,8 @@ export const useProducts = ({
         // SalesOrder
         return (originalData as SalesOrder).items;
       } else if ('lines' in originalData) {
-        // PickingTask or DeliveryNote
-        return (originalData as PickingTask | DeliveryNote).lines.map(line => ({
+        // DeliveryNote
+        return (originalData as DeliveryNote).lines.map(line => ({
           productId: line.productId,
           quantity: line.quantity,
         }));
@@ -65,7 +65,7 @@ export const useProducts = ({
         items,
         createdAt: unifiedOrder.createdAt,
         totalHT: 0, // Not needed for aggregation
-        status: unifiedOrder.lifecycle as any,
+        status: unifiedOrder.lifecycle as string,
       };
     };
 

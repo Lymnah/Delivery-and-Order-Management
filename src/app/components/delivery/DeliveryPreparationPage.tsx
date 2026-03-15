@@ -9,26 +9,18 @@ import {
 import {
   products,
   clientLogos,
-  getDeliveryPreparation,
-  updateDeliveryPreparation,
-  resetProductLots,
-  getPickingTask,
-  getSalesOrder,
-  scanLot,
-  completePickingTask,
-  type PickingTask,
-  type Order,
-  type ScannedLot,
+  scanLotOnDeliveryNote,
+  completePreparation,
+  getDeliveryNote,
+  type DeliveryNote,
   type DeliveryNoteStatus,
-  type PickingTaskStatus,
+  type SalesOrderStatus,
+  type ScannedLot,
 } from '../../../data/database';
 import ProductPreparationCard from './ProductPreparationCard';
 import {
   getStatusBadgeColor,
-  getStatusLabel,
-  getPickingTaskStatusLabelFr,
-  mapLegacyStatusToNew,
-  isLegacyStatus,
+  getDeliveryNoteStatusLabelFr,
 } from '../../utils/statusHelpers';
 
 type PreparationState =
@@ -37,23 +29,20 @@ type PreparationState =
   | 'fully-prepared';
 
 interface DeliveryPreparationPageProps {
-  // Support both PickingTask (new) and Order (legacy) for backward compatibility
-  pickingTask?: PickingTask;
-  order?: Order; // Legacy support
+  deliveryNote?: DeliveryNote;
   onBack: () => void;
-  onValidationComplete?: (deliveryNoteId?: string) => void; // Pass deliveryNoteId if BL was created
+  onValidationComplete?: (deliveryNoteId?: string) => void;
   onStatusUpdate?: (
     orderId: string,
-    newStatus: DeliveryNoteStatus | PickingTaskStatus
+    newStatus: DeliveryNoteStatus | SalesOrderStatus
   ) => void;
   onRedirectToStockCheck?: () => void;
   onRedirectToDetails?: () => void;
-  onViewSalesOrder?: (salesOrderId: string) => void; // New: View parent BC
+  onViewSalesOrder?: (salesOrderId: string) => void;
 }
 
 export default function DeliveryPreparationPage({
-  pickingTask,
-  order: legacyOrder,
+  deliveryNote,
   onBack,
   onValidationComplete,
   onStatusUpdate,
@@ -61,17 +50,13 @@ export default function DeliveryPreparationPage({
   onRedirectToDetails,
   onViewSalesOrder,
 }: DeliveryPreparationPageProps) {
-  const isPickingTask = !!pickingTask;
-  const isLegacyOrder = !!legacyOrder;
-
-  // Check if document type is valid
-  if (!pickingTask && (!legacyOrder || legacyOrder.type !== 'BL')) {
+  // Check if we have a valid delivery note
+  if (!deliveryNote) {
     return (
       <div className='flex flex-col h-full min-h-0 items-center justify-center p-4'>
         <p className='text-red-600 font-semibold mb-2'>Accès non autorisé</p>
         <p className='text-gray-600 text-sm text-center mb-4'>
-          Cette page est uniquement accessible pour les bons de préparation (BP)
-          ou les bons de livraison (BL).
+          Cette page est uniquement accessible pour les bons de livraison (BL).
         </p>
         <button
           onClick={onBack}
@@ -83,33 +68,8 @@ export default function DeliveryPreparationPage({
     );
   }
 
-  // Get effective picking task (new or converted from legacy)
-  const effectivePickingTask: PickingTask | null = useMemo(() => {
-    if (pickingTask) return pickingTask;
-    if (legacyOrder && legacyOrder.type === 'BL') {
-      // For legacy BL, we need to find or create a PickingTask
-      // This is a temporary bridge during migration
-      // In production, BL should always have a parent PickingTask
-      return null; // Will use legacy DeliveryPreparation
-    }
-    return null;
-  }, [pickingTask, legacyOrder]);
-
-  // Get parent SalesOrder if we have a PickingTask
-  const parentSalesOrder = useMemo(() => {
-    if (effectivePickingTask) {
-      return getSalesOrder(effectivePickingTask.salesOrderId);
-    }
-    return null;
-  }, [effectivePickingTask]);
-
-  // Calculate read-only mode
-  // For PickingTask: read-only if status !== 'PENDING' && status !== 'IN_PROGRESS'
-  // For legacy BL: read-only if status !== 'En préparation'
-  const isReadOnly = effectivePickingTask
-    ? effectivePickingTask.status !== 'PENDING' &&
-      effectivePickingTask.status !== 'IN_PROGRESS'
-    : isLegacyOrder && legacyOrder!.status !== 'En préparation';
+  // Read-only when status is not IN_PREPARATION
+  const isReadOnly = deliveryNote.status !== 'IN_PREPARATION';
 
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanSuccess, setScanSuccess] = useState<string | null>(null);
@@ -117,35 +77,18 @@ export default function DeliveryPreparationPage({
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const lotsPlanRef = useRef<Record<string, 1 | 2>>({});
 
-  // Get preparation state (PickingTask or legacy DeliveryPreparation)
-  const [preparation, setPreparation] = useState(() => {
-    if (effectivePickingTask) {
-      // Use PickingTask.scannedLots directly
-      return {
-        scannedLots: effectivePickingTask.scannedLots,
-        status: effectivePickingTask.status,
-      };
-    }
-    if (legacyOrder) {
-      return getDeliveryPreparation(legacyOrder.id);
-    }
-    return { scannedLots: [], status: 'READY_TO_SHIP' };
-  });
+  // Preparation state from DeliveryNote
+  const [preparation, setPreparation] = useState(() => ({
+    scannedLots: deliveryNote.scannedLots,
+    status: deliveryNote.status,
+  }));
 
-  // Get order items (from PickingTask.lines or legacy Order.items)
-  const orderItems = effectivePickingTask
-    ? effectivePickingTask.lines
-    : legacyOrder!.items;
+  // Order items from DeliveryNote lines
+  const orderItems = deliveryNote.lines;
 
-  // Get status colors and label
-  const statusColors = getStatusBadgeColor(
-    effectivePickingTask
-      ? effectivePickingTask.status
-      : (legacyOrder!.status as any)
-  );
-  const statusLabel = effectivePickingTask
-    ? getPickingTaskStatusLabelFr(effectivePickingTask.status)
-    : getStatusLabel(legacyOrder!.status as any);
+  // Status colors and label
+  const statusColors = getStatusBadgeColor(deliveryNote.status, 'BL');
+  const statusLabel = getDeliveryNoteStatusLabelFr(deliveryNote.status);
 
   // Initialize lots plan once per order
   useEffect(() => {
@@ -157,15 +100,6 @@ export default function DeliveryPreparationPage({
       }
     }
   }, [orderItems]);
-
-  // Reset Tapenade Noire lots on mount (for demo purposes) - only for legacy orders
-  useEffect(() => {
-    if (isLegacyOrder && legacyOrder) {
-      resetProductLots('1'); // Tapenade Noire product ID
-      // Refresh preparation state after reset
-      setPreparation(getDeliveryPreparation(legacyOrder.id));
-    }
-  }, [isLegacyOrder, legacyOrder]);
 
   // Helper: Get product preparation state
   const getProductPreparationState = (
@@ -257,8 +191,6 @@ export default function DeliveryPreparationPage({
     const plan = lotsPlanRef.current[pickItem.productId] ?? 1;
 
     if (productLots.length >= plan) {
-      // Plan atteint, on force le dernier lot à compléter si besoin
-      // ou on bloque pour respecter max 2 lots
       setScanError('Limite de lots atteinte pour ce produit');
       return;
     }
@@ -289,65 +221,28 @@ export default function DeliveryPreparationPage({
 
     const lotNumber = `LOT-${product.id}-${Date.now()}`;
 
-    // Use backend function for PickingTask, legacy for Order
-    if (effectivePickingTask) {
-      try {
-        scanLot(
-          effectivePickingTask.pickingTaskId,
-          product.id,
-          lotNumber,
-          quantityToAdd
-        );
-        // Refresh preparation state from PickingTask
-        const updatedPickingTask = getPickingTask(
-          effectivePickingTask.pickingTaskId
-        );
-        if (updatedPickingTask) {
-          setPreparation({
-            scannedLots: updatedPickingTask.scannedLots,
-            status: updatedPickingTask.status,
-          });
-        }
-        setScanSuccess(
-          `${product.name}: +${quantityToAdd} u (Lot: ${lotNumber})`
-        );
-      } catch (error) {
-        setScanError((error as Error).message || 'Erreur lors du scan');
-      }
-    } else if (isLegacyOrder && legacyOrder) {
-      // Legacy: use DeliveryPreparation
-      const newLot: ScannedLot = {
-        productId: product.id,
+    try {
+      scanLotOnDeliveryNote(
+        deliveryNote.deliveryNoteId,
+        product.id,
         lotNumber,
-        quantity: quantityToAdd,
-        scannedAt: new Date(),
-      };
-
-      const updatedLots = [...preparation.scannedLots, newLot];
-      // Map legacy status to new status if needed
-      const updatedStatus: DeliveryNoteStatus = isLegacyStatus(
-        preparation.status as string
-      )
-        ? (mapLegacyStatusToNew(
-            preparation.status as string,
-            'BL'
-          ) as DeliveryNoteStatus) || 'READY_TO_SHIP'
-        : preparation.status === 'READY_TO_SHIP'
-        ? 'READY_TO_SHIP' // Keep as is
-        : (preparation.status as DeliveryNoteStatus);
-
-      const updatedPreparation = {
-        ...preparation,
-        scannedLots: updatedLots,
-        status: updatedStatus,
-      };
-
-      updateDeliveryPreparation(legacyOrder.id, updatedPreparation);
-      setPreparation(updatedPreparation);
-
+        quantityToAdd
+      );
+      // Refresh preparation state from DeliveryNote
+      const updatedDeliveryNote = getDeliveryNote(
+        deliveryNote.deliveryNoteId
+      );
+      if (updatedDeliveryNote) {
+        setPreparation({
+          scannedLots: updatedDeliveryNote.scannedLots,
+          status: updatedDeliveryNote.status,
+        });
+      }
       setScanSuccess(
         `${product.name}: +${quantityToAdd} u (Lot: ${lotNumber})`
       );
+    } catch (error) {
+      setScanError((error as Error).message || 'Erreur lors du scan');
     }
   };
 
@@ -355,70 +250,33 @@ export default function DeliveryPreparationPage({
   const validateDelivery = () => {
     if (!isDeliveryReady()) return;
 
-    // For PickingTask: use completePickingTask() which creates BL DRAFT
-    if (effectivePickingTask) {
-      if (effectivePickingTask.status !== 'IN_PROGRESS') {
-        setScanError('Le BP doit être en cours de préparation');
-        return;
-      }
+    if (deliveryNote.status !== 'IN_PREPARATION') {
+      setScanError('Le BL doit être en préparation');
+      return;
+    }
 
-      try {
-        completePickingTask(effectivePickingTask.pickingTaskId);
-        setIsValidated(true);
-
-        // Get the created delivery note ID
-        const updatedPickingTask = getPickingTask(
-          effectivePickingTask.pickingTaskId
-        );
-        const deliveryNoteId = updatedPickingTask?.deliveryNoteId;
-
-        // Update status via callback
-        if (onStatusUpdate) {
-          onStatusUpdate(
-            effectivePickingTask.pickingTaskId,
-            'COMPLETED' as PickingTaskStatus
-          );
-        }
-
-        // Show confirmation and navigate after 2 seconds
-        setTimeout(() => {
-          if (onValidationComplete) {
-            onValidationComplete(deliveryNoteId);
-          }
-        }, 2000);
-      } catch (error) {
-        setScanError(
-          (error as Error).message || 'Erreur lors de la validation'
-        );
-      }
-    } else if (isLegacyOrder && legacyOrder) {
-      // Legacy: update DeliveryPreparation
-      const legacyStatus = legacyOrder.status as string;
-      if (legacyStatus !== 'En préparation' && !isLegacyStatus(legacyStatus))
-        return;
-
-      const newStatus = 'READY_TO_SHIP' as DeliveryNoteStatus;
-      const updatedPreparation = {
-        ...preparation,
-        status: newStatus,
-        preparedAt: new Date(),
-      };
-
-      updateDeliveryPreparation(legacyOrder.id, updatedPreparation);
-      setPreparation(updatedPreparation);
+    try {
+      completePreparation(deliveryNote.deliveryNoteId);
       setIsValidated(true);
 
-      // Update order status
+      // Update status via callback
       if (onStatusUpdate) {
-        onStatusUpdate(legacyOrder.id, newStatus);
+        onStatusUpdate(
+          deliveryNote.deliveryNoteId,
+          'PREPARED' as DeliveryNoteStatus
+        );
       }
 
-      // Show confirmation and navigate to details page after 2 seconds
+      // Show confirmation and navigate after 2 seconds
       setTimeout(() => {
         if (onValidationComplete) {
-          onValidationComplete();
+          onValidationComplete(deliveryNote.deliveryNoteId);
         }
       }, 2000);
+    } catch (error) {
+      setScanError(
+        (error as Error).message || 'Erreur lors de la validation'
+      );
     }
   };
 
@@ -445,9 +303,6 @@ export default function DeliveryPreparationPage({
     return state === 'fully-prepared';
   });
 
-  // Status badge uses order.status (not preparation.status)
-  // statusColors and statusLabel are already defined above
-
   return (
     <div className='flex flex-col h-full min-h-0'>
       {/* Fixed Header Section */}
@@ -465,13 +320,7 @@ export default function DeliveryPreparationPage({
         <div className='flex items-center gap-3 mb-3 pb-3 border-b border-gray-200'>
           {/* Logo à gauche */}
           <img
-            src={
-              clientLogos[
-                effectivePickingTask && parentSalesOrder
-                  ? parentSalesOrder.client
-                  : legacyOrder!.client
-              ] || ''
-            }
+            src={clientLogos[deliveryNote.client] || ''}
             alt=''
             className='w-10 h-10 rounded object-cover flex-shrink-0'
           />
@@ -479,31 +328,25 @@ export default function DeliveryPreparationPage({
           {/* Infos au centre */}
           <div className='flex-1 min-w-0'>
             <h2 className='font-semibold text-[15px] leading-tight truncate'>
-              {effectivePickingTask && parentSalesOrder
-                ? parentSalesOrder.client
-                : legacyOrder!.client}
+              {deliveryNote.client}
             </h2>
             <p className='text-[11px] text-gray-600 leading-tight truncate'>
-              {effectivePickingTask
-                ? `${effectivePickingTask.pickingTaskId} • BP`
-                : `${legacyOrder!.number} • ${legacyOrder!.type}`}
+              {deliveryNote.number} &bull; BL
             </p>
           </div>
 
           {/* Bouton à droite */}
-          {effectivePickingTask && parentSalesOrder && (
-            <button
-              onClick={() => {
-                if (onViewSalesOrder) {
-                  onViewSalesOrder(parentSalesOrder.salesOrderId);
-                }
-              }}
-              className='text-[11px] text-[#12895a] font-semibold hover:underline flex items-center gap-1 whitespace-nowrap flex-shrink-0'
-            >
-              <ArrowLeft className='w-3 h-3' />
-              Voir BC parent
-            </button>
-          )}
+          <button
+            onClick={() => {
+              if (onViewSalesOrder) {
+                onViewSalesOrder(deliveryNote.salesOrderId);
+              }
+            }}
+            className='text-[11px] text-[#12895a] font-semibold hover:underline flex items-center gap-1 whitespace-nowrap flex-shrink-0'
+          >
+            <ArrowLeft className='w-3 h-3' />
+            Voir BC parent
+          </button>
         </div>
 
         {/* Status Badge and Progress on same line */}
@@ -538,10 +381,7 @@ export default function DeliveryPreparationPage({
       {/* Scanning Button Section */}
       {!isValidated &&
         !isReadOnly &&
-        (effectivePickingTask
-          ? effectivePickingTask.status === 'PENDING' ||
-            effectivePickingTask.status === 'IN_PROGRESS'
-          : isLegacyOrder && legacyOrder!.status === 'En préparation') && (
+        deliveryNote.status === 'IN_PREPARATION' && (
           <div className='flex-shrink-0 bg-white border-b border-gray-200 p-3'>
             <button
               type='button'
@@ -562,12 +402,12 @@ export default function DeliveryPreparationPage({
 
             {scanError && (
               <p className='mt-2 text-[12px] text-red-600 font-medium'>
-                ⚠ {scanError}
+                {scanError}
               </p>
             )}
             {scanSuccess && (
               <p className='mt-2 text-[12px] text-green-600 font-medium'>
-                ✓ {scanSuccess}
+                {scanSuccess}
               </p>
             )}
           </div>
@@ -694,42 +534,24 @@ export default function DeliveryPreparationPage({
         {isValidated ? (
           <div className='bg-green-50 border border-green-200 rounded-lg p-3 text-center'>
             <p className='text-[13px] font-semibold text-green-700 mb-1'>
-              ✓ Bon de livraison prêt à expédier
+              Bon de livraison préparé
             </p>
             <p className='text-[11px] text-green-600'>Retour à la liste...</p>
           </div>
         ) : isReadOnly ? (
           <div className='bg-gray-50 border border-gray-200 rounded-lg p-3 text-center'>
             <p className='text-[13px] font-semibold text-gray-700 mb-1'>
-              {effectivePickingTask
-                ? `BP ${statusLabel.toLowerCase()}`
-                : isLegacyOrder &&
-                  legacyOrder!.status === 'Prêt à expédier' &&
-                  'Bon de livraison prêt à expédier'}
-              {isLegacyOrder &&
-                legacyOrder!.status === 'Expédié' &&
+              {deliveryNote.status === 'PREPARED' &&
+                'Bon de livraison préparé'}
+              {deliveryNote.status === 'SHIPPED' &&
                 'Bon de livraison expédié'}
-              {isLegacyOrder &&
-                legacyOrder!.status === 'Livré' &&
-                'Bon de livraison livré'}
-              {isLegacyOrder &&
-                legacyOrder!.status === 'Facturé' &&
-                'Bon de livraison facturé'}
-              {isLegacyOrder &&
-                legacyOrder!.status === 'Annulé' &&
-                'Bon de livraison annulé'}
-              {effectivePickingTask &&
-                effectivePickingTask.status === 'COMPLETED' &&
-                'BP terminé. BL créé automatiquement.'}
             </p>
             <p className='text-[11px] text-gray-600'>
               Aucune action disponible à ce statut
             </p>
           </div>
         ) : (
-          (effectivePickingTask
-            ? effectivePickingTask.status === 'IN_PROGRESS'
-            : isLegacyOrder && legacyOrder!.status === 'En préparation') && (
+          deliveryNote.status === 'IN_PREPARATION' && (
             <button
               onClick={validateDelivery}
               disabled={!isDeliveryReady()}

@@ -98,9 +98,9 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   };
 
   return (
-    <div className='bg-[#f5f5f6] relative w-[393px] h-[852px] mx-auto overflow-y-auto'>
+    <div className='bg-[#f5f5f6] relative flex-1 w-full overflow-y-auto'>
       {/* Main Content */}
-      <div className='pt-[84px] pb-[100px] px-4'>
+      <div className='pt-4 pb-4 px-4'>
         {/* Dashboard Modules Grid */}
         <div className='mb-4'>
           <div className='grid grid-cols-2 gap-4 mb-6'>
@@ -159,8 +159,8 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       </div>
 
-      {/* QR Code Scanner Button - Fixed at bottom */}
-      <button className='fixed bottom-[90px] right-4 bg-[#12895a] border border-[#12895a] rounded-full p-[18px] shadow-lg hover:bg-[#107a4d] transition-colors active:scale-95'>
+      {/* QR Code Scanner Button - Bottom right, above NavBar */}
+      <button className='absolute bottom-4 right-4 bg-[#12895a] border border-[#12895a] rounded-full p-[18px] shadow-lg hover:bg-[#107a4d] transition-colors active:scale-95 z-10'>
         <QrCode className='w-5 h-5 text-white' />
       </button>
     </div>

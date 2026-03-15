@@ -16,16 +16,15 @@ import type {
   UnifiedOrder,
   StockStatus,
   SalesOrder,
-  PickingTask,
   DeliveryNote,
 } from '../../../data/database';
 import { getDaysUntil, getRelativeDateLabel } from '../../utils/dateHelpers';
 import { calculateStockStatus } from '../../utils/unifiedOrderHelpers';
 import {
   getSalesOrderStatusLabelFr,
-  getPickingTaskStatusLabelFr,
   getDeliveryNoteStatusLabelFr,
   getStatusBadgeColor,
+  type OrderStatus,
 } from '../../utils/statusHelpers';
 
 interface OrderCardProps {
@@ -63,8 +62,10 @@ export default function OrderCard({
     const previews: string[] = [];
     const sourceItems =
       isUnified && unifiedOrder
-        ? (unifiedOrder.originalData as any).items ||
-          (unifiedOrder.originalData as any).lines
+        ? ('items' in unifiedOrder.originalData
+            ? (unifiedOrder.originalData as SalesOrder).items
+            : (unifiedOrder.originalData as DeliveryNote).lines) ||
+          []
         : order?.items;
 
     if (sourceItems) {
@@ -82,28 +83,15 @@ export default function OrderCard({
     if (isUnified && unifiedOrder) {
       const originalData = unifiedOrder.originalData;
 
-      // Check if it's a SalesOrder (has salesOrderId property)
+      // Check if it's a SalesOrder (has salesOrderId property but not deliveryNoteId)
       if (
         'salesOrderId' in originalData &&
-        !('pickingTaskId' in originalData) &&
         !('deliveryNoteId' in originalData)
       ) {
         const salesOrder = originalData as unknown as SalesOrder;
         return {
           label: getSalesOrderStatusLabelFr(salesOrder.status),
           status: salesOrder.status,
-        };
-      }
-
-      // Check if it's a PickingTask (has pickingTaskId property)
-      if (
-        'pickingTaskId' in originalData &&
-        !('deliveryNoteId' in originalData)
-      ) {
-        const pickingTask = originalData as unknown as PickingTask;
-        return {
-          label: getPickingTaskStatusLabelFr(pickingTask.status),
-          status: pickingTask.status,
         };
       }
 
@@ -130,16 +118,12 @@ export default function OrderCard({
 
   const realStatus = getRealStatus();
   // Determine documentType from unifiedOrder.sourceType or order.type
-  // Note: DocumentType is 'BC' | 'BL', but UnifiedOrder.sourceType can be 'BC' | 'BP' | 'BL'
-  // We'll pass 'BL' for BP since BP doesn't have READY_TO_SHIP status anyway
   const documentType: 'BC' | 'BL' | undefined =
     isUnified && unifiedOrder
-      ? unifiedOrder.sourceType === 'BP'
-        ? 'BL'
-        : (unifiedOrder.sourceType as 'BC' | 'BL')
+      ? (unifiedOrder.sourceType as 'BC' | 'BL')
       : (order?.type as 'BC' | 'BL' | undefined);
   const statusColors = getStatusBadgeColor(
-    realStatus.status as any,
+    realStatus.status as OrderStatus,
     documentType
   );
 
@@ -165,7 +149,7 @@ export default function OrderCard({
             icon: Package,
             statusLabel: realStatus.label, // Use real status
             showProgress: true,
-            docFullLabel: 'Bon de préparation', // Texte clair
+            docFullLabel: 'Bon de livraison', // Texte clair
           };
         case 'READY_TO_SHIP':
         case 'SHIPPED':
@@ -207,7 +191,7 @@ export default function OrderCard({
   const stockStatus: StockStatus | null | undefined = isUnified
     ? unifiedOrder?.stockStatus
     : order?.type === 'BC'
-    ? calculateStockStatus({ items: order?.items } as any)
+    ? calculateStockStatus({ items: order?.items } as SalesOrder)
     : null;
 
   // Formatage ID
@@ -281,7 +265,7 @@ export default function OrderCard({
                     : 'Rupture partielle'}
                 </span>
               </div>
-            ) : /* CAS B : Progression (pour BP) */
+            ) : /* CAS B : Progression (pour BL en préparation) */
             visual.showProgress &&
               unifiedOrder?.progressPercentage !== undefined ? (
               <>

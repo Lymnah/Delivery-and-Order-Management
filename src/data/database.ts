@@ -19,7 +19,7 @@ import imgTzatziki from '../assets/f4b9c2546699f16007b2437a15c440b7f521c550.png'
 // Types
 export type DocumentType = 'BC' | 'BL';
 
-// ===== NEW STATUS ENUMS (English values) =====
+// ===== STATUS ENUMS =====
 // Sales order statuses (BC - Bon de Commande)
 export type SalesOrderStatus =
   | 'DRAFT'
@@ -27,26 +27,13 @@ export type SalesOrderStatus =
   | 'IN_PREPARATION'
   | 'PARTIALLY_SHIPPED'
   | 'SHIPPED'
-  | 'INVOICED'
-  | 'CANCELLED';
-
-// Picking task statuses (BP - Bon de Préparation)
-export type PickingTaskStatus =
-  | 'PENDING'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
   | 'CANCELLED';
 
 // Delivery note statuses (BL - Bon de Livraison)
 export type DeliveryNoteStatus =
-  | 'READY_TO_SHIP'
-  | 'SHIPPED'
-  | 'SIGNED' // Optional V1
-  | 'INVOICED';
-
-// ===== LEGACY STATUS TYPES REMOVED =====
-// Legacy status types have been removed. Use SalesOrderStatus, PickingTaskStatus, or DeliveryNoteStatus instead.
-// The mapLegacyStatusToNew() function in statusHelpers.ts can convert old French status strings to new enums.
+  | 'IN_PREPARATION'
+  | 'PREPARED'
+  | 'SHIPPED';
 
 // Dispute status
 export type DisputeStatus = 'none' | 'open' | 'in_progress' | 'resolved';
@@ -58,8 +45,7 @@ export type OrderLifecycle =
   | 'TO_PREPARE'
   | 'IN_PREPARATION'
   | 'READY_TO_SHIP'
-  | 'SHIPPED'
-  | 'INVOICED';
+  | 'SHIPPED';
 
 // Stock status for BC orders
 export type StockStatus = 'IN_STOCK' | 'PARTIAL' | 'OUT_OF_STOCK' | 'UNKNOWN';
@@ -72,14 +58,14 @@ export interface UnifiedOrder {
   itemsCount: number;
   totalWeight?: number; // Optional weight for BL
   lifecycle: OrderLifecycle;
-  stockStatus: StockStatus; // For BC only, UNKNOWN for BP/BL
-  progressPercentage?: number; // For BP only (0-100)
-  sourceType: 'BC' | 'BP' | 'BL';
-  sourceId: string; // salesOrderId, pickingTaskId, or deliveryNoteId
+  stockStatus: StockStatus; // For BC only, UNKNOWN for BL
+  progressPercentage?: number; // For BL in preparation (0-100)
+  sourceType: 'BC' | 'BL';
+  sourceId: string; // salesOrderId or deliveryNoteId
   number: string; // Document number for display
   createdAt: Date;
   // Reference to original data for actions
-  originalData: SalesOrder | PickingTask | DeliveryNote;
+  originalData: SalesOrder | DeliveryNote;
 }
 
 export interface Product {
@@ -111,52 +97,7 @@ export interface SalesOrder {
   disputeStatus?: DisputeStatus;
 }
 
-// Picking Task Line (ligne de picking)
-export interface PickingTaskLine {
-  productId: string;
-  quantity: number; // Quantity to pick (may be partial)
-}
-
-// Picking Task (BP - Bon de Préparation)
-export interface PickingTask {
-  pickingTaskId: string;
-  salesOrderId: string; // Parent BC
-  status: PickingTaskStatus;
-  lines: PickingTaskLine[]; // Picking lines
-  scannedLots: ScannedLot[]; // Lot traceability
-  deliveryNoteId?: string; // Generated BL (1 BP -> 1 BL)
-  createdAt: Date;
-  startedAt?: Date;
-  completedAt?: Date;
-}
-
-// Delivery Note Line (snapshot figé)
-export interface DeliveryNoteLine {
-  productId: string;
-  quantity: number; // Actual quantity delivered
-}
-
-// Delivery Note (BL - Bon de Livraison)
-export interface DeliveryNote {
-  deliveryNoteId: string;
-  pickingTaskId: string; // Parent BP
-  number: string;
-  client: string;
-  deliveryDate: Date;
-  status: DeliveryNoteStatus;
-  lines: DeliveryNoteLine[]; // Frozen snapshot
-  scannedLots: ScannedLot[]; // Copy from BP
-  createdAt: Date;
-  shippedAt?: Date;
-  signedAt?: Date;
-  invoicedAt?: Date;
-}
-
-// ===== LEGACY ORDER INTERFACE (deprecated, kept for compatibility) =====
-/**
- * @deprecated Use SalesOrder, PickingTask, or DeliveryNote instead
- * This interface is kept for backward compatibility during migration
- */
+// Legacy Order interface — kept for compatibility with calendar/list views
 export interface Order {
   id: string;
   number: string;
@@ -166,8 +107,33 @@ export interface Order {
   items: OrderItem[];
   createdAt: Date;
   totalHT: number;
-  status: SalesOrderStatus | DeliveryNoteStatus | string; // Accepts legacy French status strings for backward compatibility
-  disputeStatus?: DisputeStatus; // Optional dispute status
+  status: string;
+  disputeStatus?: DisputeStatus;
+}
+
+// Empty legacy orders array — kept for compatibility
+export const orders: Order[] = [];
+
+// Delivery Note Line
+export interface DeliveryNoteLine {
+  productId: string;
+  quantity: number;
+}
+
+// Delivery Note (BL - Bon de Livraison)
+export interface DeliveryNote {
+  deliveryNoteId: string;
+  salesOrderId: string; // Parent BC
+  number: string;
+  client: string;
+  deliveryDate: Date;
+  status: DeliveryNoteStatus;
+  lines: DeliveryNoteLine[]; // Lines to prepare/deliver
+  scannedLots: ScannedLot[]; // Lot traceability
+  createdAt: Date;
+  startedAt?: Date; // When scanning started
+  preparedAt?: Date; // When preparation completed
+  shippedAt?: Date; // When shipped
 }
 
 // Delivery preparation types
@@ -176,16 +142,6 @@ export interface ScannedLot {
   lotNumber: string;
   quantity: number;
   scannedAt: Date;
-}
-
-export interface DeliveryPreparation {
-  orderId: string;
-  status: DeliveryNoteStatus;
-  scannedLots: ScannedLot[];
-  preparedAt?: Date;
-  shippedAt?: Date;
-  deliveredAt?: Date;
-  invoicedAt?: Date;
 }
 
 // Fonction pour obtenir la date actuelle (minuit)
@@ -257,13 +213,6 @@ export const products: Product[] = [
   },
 ];
 
-// ===== OLD ORDERS SYSTEM (DEPRECATED - REMOVED) =====
-// The old `orders` array has been completely removed.
-// Use `salesOrders`, `pickingTasks`, and `deliveryNotes` instead.
-// This export is kept as an empty array for backward compatibility with components that still reference it.
-// @deprecated Do not use. Use salesOrders, pickingTasks, or deliveryNotes instead.
-export const orders: Order[] = [];
-
 // Client logos mapping
 export const clientLogos: Record<string, string> = {
   Carrefour: imgCarrefour,
@@ -271,12 +220,9 @@ export const clientLogos: Record<string, string> = {
   Leclerc: imgLeclerc,
 };
 
-// ===== NEW DATA STORES =====
+// ===== DATA STORES =====
 // Sales Orders (BC) - Mutable for demo
 export let salesOrders: SalesOrder[] = [];
-
-// Picking Tasks (BP) - Mutable for demo
-export let pickingTasks: PickingTask[] = [];
 
 // Delivery Notes (BL) - Mutable for demo
 export let deliveryNotes: DeliveryNote[] = [];
@@ -291,7 +237,6 @@ function initializeDemoData() {
 
   // Clear existing data
   salesOrders = [];
-  pickingTasks = [];
   deliveryNotes = [];
 
   // ===== 3 BC (Sales Orders) for today =====
@@ -344,26 +289,8 @@ function initializeDemoData() {
   // Tous les BC restent en CONFIRMED pour être visibles
   salesOrders.push(bc1, bc2, bc3);
 
-  // ===== 1 BP (Picking Task) for today =====
-  // BP créé à partir d'un BC supplémentaire (pour démo)
-  // On crée un BC4 temporaire juste pour le BP, ou on utilise un BC existant mais on le met en IN_PREPARATION
-  // Pour la démo, on va créer le BP sur BC1 mais le mettre en PENDING (pas encore démarré)
-  // Ainsi, BC1 reste visible car le BP n'est pas encore IN_PROGRESS
-  // OU mieux : créer le BP sur un BC qui n'est pas dans la liste initiale
-
-  // Option : Créer un BC4 pour le BP (mais il ne sera pas dans les 3 BC initiaux)
-  // OU : Le BP sera créé dynamiquement par l'utilisateur en cliquant sur "Lancer Prépa"
-
-  // Pour l'instant, on ne crée pas de BP au démarrage pour que les 3 BC soient tous visibles
-  // Le BP sera créé dynamiquement quand l'utilisateur clique sur "Lancer Prépa"
-
-  // ===== 1 BL (Delivery Note) for today =====
-  // Le BL sera créé à partir d'un BP complété
-  // Pour la démo, on peut créer un BL qui vient d'un BC qui n'est plus dans la liste
-
-  // ===== 1 BP (Picking Task) for today =====
-  // Pour avoir 1 BP visible, on crée un BP sur un BC qui n'est pas dans les 3 initiaux
-  // On crée un BC4 temporaire juste pour le BP
+  // ===== 1 BL en préparation for today =====
+  // BL créé à partir de BC4
   const bc4: SalesOrder = {
     salesOrderId: 'BC-DEMO-004',
     number: 'BC-2025-004',
@@ -375,26 +302,27 @@ function initializeDemoData() {
     ],
     createdAt: addDays(today, -4),
     totalHT: 1250,
-    status: 'IN_PREPARATION', // En préparation car a un BP
+    status: 'IN_PREPARATION',
   };
 
-  const bp1: PickingTask = {
-    pickingTaskId: 'BP-DEMO-001',
-    salesOrderId: 'BC-DEMO-004', // Lié à BC4
-    status: 'IN_PROGRESS',
+  const bl_prep: DeliveryNote = {
+    deliveryNoteId: 'BL-DEMO-PREP-001',
+    salesOrderId: 'BC-DEMO-004',
+    number: 'BL-2025-PREP-001',
+    client: 'Carrefour',
+    deliveryDate: today,
+    status: 'IN_PREPARATION',
     lines: [
       { productId: '1', quantity: 50 },
       { productId: '2', quantity: 75 },
     ],
     scannedLots: [
-      // Produit 1: 50/50 scanné (complet)
       {
         productId: '1',
         lotNumber: 'LOT-TN-2025-002',
         quantity: 50,
         scannedAt: addDays(today, -1),
       },
-      // Produit 2: 45/75 scanné (partiel - 60%)
       {
         productId: '2',
         lotNumber: 'LOT-TV-2025-002',
@@ -406,12 +334,10 @@ function initializeDemoData() {
     startedAt: addDays(today, -1),
   };
 
-  salesOrders.push(bc4); // BC4 sera masqué par le BP (déduplication)
-  pickingTasks.push(bp1);
+  salesOrders.push(bc4); // BC4 sera masqué par le BL (déduplication)
+  deliveryNotes.push(bl_prep);
 
-  // ===== 1 BL (Delivery Note) for today =====
-  // BL créé à partir d'un BP complété précédemment
-  // On crée un BC5 temporaire pour le BL
+  // ===== 1 BL préparé (prêt à expédier) for today =====
   const bc5: SalesOrder = {
     salesOrderId: 'BC-DEMO-005',
     number: 'BC-2025-005',
@@ -423,44 +349,16 @@ function initializeDemoData() {
     ],
     createdAt: addDays(today, -6),
     totalHT: 2500,
-    status: 'SHIPPED', // Livré car a un BL
-  };
-
-  const bp2: PickingTask = {
-    pickingTaskId: 'BP-DEMO-COMPLETED-001',
-    salesOrderId: 'BC-DEMO-005',
-    status: 'COMPLETED',
-    lines: [
-      { productId: '3', quantity: 200 },
-      { productId: '4', quantity: 50 },
-    ],
-    scannedLots: [
-      {
-        productId: '3',
-        lotNumber: 'LOT-HO-2025-002',
-        quantity: 200,
-        scannedAt: addDays(today, -2),
-      },
-      {
-        productId: '4',
-        lotNumber: 'LOT-CA-2025-002',
-        quantity: 50,
-        scannedAt: addDays(today, -2),
-      },
-    ],
-    createdAt: addDays(today, -3),
-    startedAt: addDays(today, -3),
-    completedAt: addDays(today, -2),
-    deliveryNoteId: 'BL-DEMO-001',
+    status: 'IN_PREPARATION',
   };
 
   const bl1: DeliveryNote = {
     deliveryNoteId: 'BL-DEMO-001',
-    pickingTaskId: 'BP-DEMO-COMPLETED-001',
+    salesOrderId: 'BC-DEMO-005',
     number: 'BL-2025-001',
     client: 'Leclerc',
     deliveryDate: today,
-    status: 'READY_TO_SHIP', // Prêt à quai
+    status: 'PREPARED',
     lines: [
       { productId: '3', quantity: 200 },
       { productId: '4', quantity: 50 },
@@ -480,10 +378,10 @@ function initializeDemoData() {
       },
     ],
     createdAt: addDays(today, -2),
+    preparedAt: addDays(today, -1),
   };
 
   salesOrders.push(bc5); // BC5 sera masqué par le BL (déduplication)
-  pickingTasks.push(bp2);
   deliveryNotes.push(bl1);
 
   // ===== Past orders (1 per day for the last 15 days) =====
@@ -503,7 +401,7 @@ function initializeDemoData() {
       productsForPastOrders[(i + 1) % productsForPastOrders.length],
     ];
 
-    // Create a BC that was shipped/invoiced in the past
+    // Create a BC that was shipped in the past
     const pastBC: SalesOrder = {
       salesOrderId: `BC-PAST-${String(i).padStart(3, '0')}`,
       number: `BC-2025-PAST-${String(i).padStart(3, '0')}`,
@@ -512,13 +410,12 @@ function initializeDemoData() {
       items: orderItems,
       createdAt: addDays(pastDate, -Math.floor(Math.random() * 5) - 1),
       totalHT: orderItems.reduce((sum, item) => sum + item.quantity * 10, 0),
-      status: i <= 5 ? 'SHIPPED' : 'INVOICED', // First 5 days: SHIPPED, rest: INVOICED
+      status: 'SHIPPED',
     };
 
     salesOrders.push(pastBC);
 
-    // Create corresponding BL for shipped/invoiced orders
-    // Convert OrderItem[] to DeliveryNoteLine[]
+    // Create corresponding BL for shipped orders
     const deliveryNoteLines = orderItems.map((item) => ({
       productId: item.productId,
       quantity: item.quantity,
@@ -526,11 +423,11 @@ function initializeDemoData() {
 
     const pastBL: DeliveryNote = {
       deliveryNoteId: `BL-PAST-${String(i).padStart(3, '0')}`,
-      pickingTaskId: `BP-PAST-${String(i).padStart(3, '0')}`, // Reference to a past BP
+      salesOrderId: `BC-PAST-${String(i).padStart(3, '0')}`,
       number: `BL-2025-PAST-${String(i).padStart(3, '0')}`,
       client: client,
       deliveryDate: pastDate,
-      status: i <= 5 ? 'SHIPPED' : 'INVOICED',
+      status: 'SHIPPED',
       lines: deliveryNoteLines,
       scannedLots: orderItems.map((item) => ({
         productId: item.productId,
@@ -539,8 +436,8 @@ function initializeDemoData() {
         scannedAt: addDays(pastDate, -1),
       })),
       createdAt: addDays(pastDate, -1),
-      shippedAt: i <= 5 ? addDays(pastDate, 0) : undefined,
-      invoicedAt: i > 5 ? addDays(pastDate, 0) : undefined,
+      preparedAt: addDays(pastDate, -1),
+      shippedAt: pastDate,
     };
 
     deliveryNotes.push(pastBL);
@@ -550,9 +447,9 @@ function initializeDemoData() {
   // - BC1 (Carrefour) : CONFIRMED → visible comme BC bleu
   // - BC2 (Auchan) : CONFIRMED → visible comme BC bleu
   // - BC3 (Leclerc) : CONFIRMED → visible comme BC bleu
-  // - BP1 (Carrefour) : remplace BC4 → visible comme BP orange
-  // - BL1 (Leclerc) : remplace BC5/BP2 → visible comme BL vert
-  // Total : 3 BC + 1 BP + 1 BL = 5 éléments
+  // - BL-PREP (Carrefour) : remplace BC4 → visible comme BL en préparation orange
+  // - BL1 (Leclerc) : remplace BC5 → visible comme BL préparé vert
+  // Total : 3 BC + 2 BL = 5 éléments
 
   // ===== Données de test pour les 6 prochains mois =====
   const clients = ['Carrefour', 'Auchan', 'Leclerc'];
@@ -678,49 +575,49 @@ function initializeDemoData() {
 
       salesOrders.push(salesOrder);
 
-      // Pour environ 20% des commandes, créer un BP en cours
+      // Pour environ 20% des commandes, créer un BL en préparation
       if (Math.random() < 0.2) {
-        const pickingTask: PickingTask = {
-          pickingTaskId: `BP-MONTH-${monthOffset}-${i + 1}`,
+        const blStatus: DeliveryNoteStatus = Math.random() < 0.5 ? 'IN_PREPARATION' : 'IN_PREPARATION';
+        const deliveryNote: DeliveryNote = {
+          deliveryNoteId: `BL-MONTH-${monthOffset}-${i + 1}-PREP`,
           salesOrderId,
-          status: Math.random() < 0.5 ? 'PENDING' : 'IN_PROGRESS',
+          number: `BL-2025-${String(monthOffset).padStart(2, '0')}${String(i + 1).padStart(3, '0')}-P`,
+          client,
+          deliveryDate: orderDate,
+          status: blStatus,
           lines: items,
           scannedLots: [],
           createdAt: addDays(orderDate, -Math.floor(Math.random() * 5)),
-          ...(Math.random() < 0.5
-            ? { startedAt: addDays(orderDate, -Math.floor(Math.random() * 3)) }
-            : {}),
+          startedAt: Math.random() < 0.5 ? addDays(orderDate, -Math.floor(Math.random() * 3)) : undefined,
         };
 
-        // Ajouter quelques lots scannés si IN_PROGRESS
-        if (pickingTask.status === 'IN_PROGRESS') {
-          items.forEach((item, idx) => {
-            if (Math.random() < 0.7) {
-              // 70% des produits ont des lots scannés
-              const scannedQty = Math.floor(
-                item.quantity * (0.3 + Math.random() * 0.7)
-              ); // 30-100% scanné
-              pickingTask.scannedLots.push({
-                productId: item.productId,
-                lotNumber: `LOT-${item.productId}-${monthOffset}-${i}-${idx}`,
-                quantity: scannedQty,
-                scannedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
-              });
-            }
-          });
-        }
+        // Add some scanned lots
+        items.forEach((item, idx) => {
+          if (Math.random() < 0.7) {
+            const scannedQty = Math.floor(item.quantity * (0.3 + Math.random() * 0.7));
+            deliveryNote.scannedLots.push({
+              productId: item.productId,
+              lotNumber: `LOT-${item.productId}-${monthOffset}-${i}-${idx}`,
+              quantity: scannedQty,
+              scannedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
+            });
+          }
+        });
 
-        pickingTasks.push(pickingTask);
+        deliveryNotes.push(deliveryNote);
         salesOrder.status = 'IN_PREPARATION';
       }
 
-      // Pour environ 10% des commandes, créer un BL (livré)
+      // Pour environ 10% des commandes, créer un BL préparé ou expédié
       if (Math.random() < 0.1) {
-        const pickingTaskId = `BP-MONTH-${monthOffset}-${i + 1}-COMPLETED`;
-        const completedPickingTask: PickingTask = {
-          pickingTaskId,
+        const isShipped = Math.random() < 0.5;
+        const deliveryNote: DeliveryNote = {
+          deliveryNoteId: `BL-MONTH-${monthOffset}-${i + 1}`,
           salesOrderId,
-          status: 'COMPLETED',
+          number: `BL-2025-${String(monthOffset).padStart(2, '0')}${String(i + 1).padStart(3, '0')}`,
+          client,
+          deliveryDate: orderDate,
+          status: isShipped ? 'SHIPPED' : 'PREPARED',
           lines: items,
           scannedLots: items.map((item, idx) => ({
             productId: item.productId,
@@ -728,38 +625,21 @@ function initializeDemoData() {
             quantity: item.quantity,
             scannedAt: addDays(orderDate, -Math.floor(Math.random() * 5)),
           })),
-          createdAt: addDays(orderDate, -Math.floor(Math.random() * 10)),
-          startedAt: addDays(orderDate, -Math.floor(Math.random() * 8)),
-          completedAt: addDays(orderDate, -Math.floor(Math.random() * 3)),
-          deliveryNoteId: `BL-MONTH-${monthOffset}-${i + 1}`,
-        };
-
-        const deliveryNote: DeliveryNote = {
-          deliveryNoteId: `BL-MONTH-${monthOffset}-${i + 1}`,
-          pickingTaskId,
-          number: `BL-2025-${String(monthOffset).padStart(2, '0')}${String(
-            i + 1
-          ).padStart(3, '0')}`,
-          client,
-          deliveryDate: orderDate,
-          status: Math.random() < 0.5 ? 'READY_TO_SHIP' : 'SHIPPED',
-          lines: items,
-          scannedLots: completedPickingTask.scannedLots,
           createdAt: addDays(orderDate, -Math.floor(Math.random() * 3)),
+          preparedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
+          shippedAt: isShipped ? orderDate : undefined,
         };
 
-        pickingTasks.push(completedPickingTask);
         deliveryNotes.push(deliveryNote);
-        salesOrder.status =
-          deliveryNote.status === 'SHIPPED' ? 'SHIPPED' : 'PARTIALLY_SHIPPED';
+        salesOrder.status = isShipped ? 'SHIPPED' : 'IN_PREPARATION';
       }
     }
   }
 
-  // ===== Commandes spécifiques pour la période lundi 22.12.25 - jeudi 22.01.26 =====
+  // ===== Commandes spécifiques pour une période de ~4 semaines à partir d'aujourd'hui =====
   // Calculer les dates de début et fin
-  const startDate = new Date(2025, 11, 22); // 22 décembre 2025 (mois 0-indexed)
-  const endDate = new Date(2026, 0, 22); // 22 janvier 2026
+  const startDate = today; // Start from today
+  const endDate = addDays(today, 31); // ~4 weeks from today
 
   // Trouver le lundi de la semaine de début
   const mondayStart = startOfWeek(startDate, { locale: fr });
@@ -873,37 +753,34 @@ function initializeDemoData() {
       salesOrders.push(salesOrder);
       orderCounter++;
 
-      // Pour environ 20% des commandes, créer un BP en cours
+      // Pour environ 20% des commandes, créer un BL en préparation
       if (Math.random() < 0.2) {
-        const pickingTask: PickingTask = {
-          pickingTaskId: `BP-WEEK-${weekOffset + 1}-${i + 1}`,
+        const weekBL: DeliveryNote = {
+          deliveryNoteId: `BL-WEEK-${weekOffset + 1}-${i + 1}`,
           salesOrderId,
-          status: Math.random() < 0.5 ? 'PENDING' : 'IN_PROGRESS',
+          number: `BL-WEEK-${String(weekOffset + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`,
+          client,
+          deliveryDate: orderDate,
+          status: 'IN_PREPARATION',
           lines: items,
           scannedLots: [],
           createdAt: addDays(orderDate, -Math.floor(Math.random() * 5)),
-          ...(Math.random() < 0.5
-            ? { startedAt: addDays(orderDate, -Math.floor(Math.random() * 3)) }
-            : {}),
+          startedAt: Math.random() < 0.5 ? addDays(orderDate, -Math.floor(Math.random() * 3)) : undefined,
         };
 
-        if (pickingTask.status === 'IN_PROGRESS') {
-          items.forEach((item, idx) => {
-            if (Math.random() < 0.7) {
-              const scannedQty = Math.floor(
-                item.quantity * (0.3 + Math.random() * 0.7)
-              );
-              pickingTask.scannedLots.push({
-                productId: item.productId,
-                lotNumber: `LOT-${item.productId}-WEEK-${weekOffset}-${i}-${idx}`,
-                quantity: scannedQty,
-                scannedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
-              });
-            }
-          });
-        }
+        items.forEach((item, idx) => {
+          if (Math.random() < 0.7) {
+            const scannedQty = Math.floor(item.quantity * (0.3 + Math.random() * 0.7));
+            weekBL.scannedLots.push({
+              productId: item.productId,
+              lotNumber: `LOT-${item.productId}-WEEK-${weekOffset}-${i}-${idx}`,
+              quantity: scannedQty,
+              scannedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
+            });
+          }
+        });
 
-        pickingTasks.push(pickingTask);
+        deliveryNotes.push(weekBL);
         salesOrder.status = 'IN_PREPARATION';
       }
     }
@@ -934,9 +811,6 @@ export function adjustDemoDataDates() {
         so.deliveryDate = currentDate;
       });
 
-      // Adjust all PickingTasks (via their parent SalesOrder dates)
-      // Note: PickingTasks use their parent SalesOrder's deliveryDate, so they're automatically adjusted
-
       // Adjust all DeliveryNotes delivery dates
       deliveryNotes.forEach((dn) => {
         const currentDate = new Date(dn.deliveryDate);
@@ -963,77 +837,7 @@ export const resetDemoData = () => {
 initializeDemoData();
 demoDataReferenceDate = new Date(getToday()); // Set initial reference date
 
-// ===== LEGACY DATA STORES (for backward compatibility) =====
-// Delivery preparation mock data
-// In a real app, this would be stored in a database
-export const deliveryPreparations: Map<string, DeliveryPreparation> = new Map();
-
-// Helper function to get or create delivery preparation for an order
-// @deprecated This is only used for legacy Order compatibility. Use PickingTask.scannedLots instead.
-export const getDeliveryPreparation = (
-  orderId: string
-): DeliveryPreparation => {
-  if (!deliveryPreparations.has(orderId)) {
-    // Initialize with "READY_TO_SHIP" status for new orders
-    // Note: This is only for legacy Order support. New system uses PickingTask.scannedLots
-    deliveryPreparations.set(orderId, {
-      orderId,
-      status: 'READY_TO_SHIP',
-      scannedLots: [],
-    });
-  }
-  return deliveryPreparations.get(orderId)!;
-};
-
-// Helper function to update delivery preparation
-export const updateDeliveryPreparation = (
-  orderId: string,
-  updates: Partial<DeliveryPreparation>
-): void => {
-  const current = getDeliveryPreparation(orderId);
-  deliveryPreparations.set(orderId, { ...current, ...updates });
-};
-
-// Helper function to reset lots for a specific product in all orders
-export const resetProductLots = (productId: string): void => {
-  deliveryPreparations.forEach((prep, orderId) => {
-    const filteredLots = prep.scannedLots.filter(
-      (lot) => lot.productId !== productId
-    );
-    if (filteredLots.length !== prep.scannedLots.length) {
-      deliveryPreparations.set(orderId, {
-        ...prep,
-        scannedLots: filteredLots,
-        // Reset status to "READY_TO_SHIP" if no lots remain (legacy compatibility)
-        status:
-          filteredLots.length === 0
-            ? 'READY_TO_SHIP'
-            : prep.status === 'SHIPPED'
-            ? 'READY_TO_SHIP' // Using new enum value
-            : prep.status,
-      });
-    }
-  });
-};
-
-// Helper function to update order status (legacy compatibility - deprecated)
-// @deprecated Use updateSalesOrderStatus, shipDeliveryNote, invoiceDeliveryNote instead
-export const updateOrderStatus = (
-  orderId: string,
-  newStatus: SalesOrderStatus | DeliveryNoteStatus | string
-): void => {
-  // Legacy function - orders array is now empty, so this does nothing
-  // Status updates should use the new document-specific functions:
-  // - updateSalesOrderStatus() for SalesOrder
-  // - shipDeliveryNote() for DeliveryNote
-  // - invoiceDeliveryNote() for DeliveryNote
-  console.warn(
-    `updateOrderStatus() called for ${orderId} - this function is deprecated. Use document-specific update functions instead.`
-  );
-  // No-op: orders array is empty and deprecated
-};
-
-// ===== NEW BACKEND FUNCTIONS =====
+// ===== BACKEND FUNCTIONS =====
 
 // ===== SalesOrder (BC) Functions =====
 export const confirmSalesOrder = (salesOrderId: string): void => {
@@ -1071,10 +875,11 @@ export const updateSalesOrderStatus = (
   }
 };
 
-// ===== PickingTask (BP) Functions =====
-export const createPickingTaskFromSalesOrder = (
+// ===== DeliveryNote (BL) Functions =====
+
+export const createDeliveryNoteFromSalesOrder = (
   salesOrderId: string
-): PickingTask => {
+): DeliveryNote => {
   const salesOrder = getSalesOrder(salesOrderId);
   if (!salesOrder) {
     throw new Error(`SalesOrder ${salesOrderId} not found`);
@@ -1085,18 +890,32 @@ export const createPickingTaskFromSalesOrder = (
     salesOrder.status !== 'PARTIALLY_SHIPPED'
   ) {
     throw new Error(
-      `Cannot create picking task for SalesOrder with status ${salesOrder.status}`
+      `Cannot create delivery note for SalesOrder with status ${salesOrder.status}`
+    );
+  }
+
+  // Guard against duplicate active delivery notes
+  const existingActive = deliveryNotes.find(
+    (dn) =>
+      dn.salesOrderId === salesOrderId &&
+      (dn.status === 'IN_PREPARATION' || dn.status === 'PREPARED')
+  );
+  if (existingActive) {
+    throw new Error(
+      `Un bon de livraison actif existe déjà pour cette commande (${existingActive.deliveryNoteId})`
     );
   }
 
   // Calculate remaining quantities
   const remainingQuantities = getRemainingQuantities(salesOrderId);
 
-  // Create picking task
-  const pickingTask: PickingTask = {
-    pickingTaskId: `BP-${Date.now()}`,
+  const deliveryNote: DeliveryNote = {
+    deliveryNoteId: `BL-${Date.now()}`,
     salesOrderId,
-    status: 'PENDING',
+    number: `BL-${Date.now()}`,
+    client: salesOrder.client,
+    deliveryDate: salesOrder.deliveryDate,
+    status: 'IN_PREPARATION',
     lines: remainingQuantities.map((item) => ({
       productId: item.productId,
       quantity: item.remaining,
@@ -1105,42 +924,38 @@ export const createPickingTaskFromSalesOrder = (
     createdAt: new Date(),
   };
 
-  pickingTasks.push(pickingTask);
+  deliveryNotes.push(deliveryNote);
 
   // Update SalesOrder status to IN_PREPARATION
   updateSalesOrderStatus(salesOrderId, 'IN_PREPARATION');
 
-  return pickingTask;
+  return deliveryNote;
 };
 
-export const startPickingTask = (pickingTaskId: string): void => {
-  const pickingTask = pickingTasks.find(
-    (pt) => pt.pickingTaskId === pickingTaskId
-  );
-  if (pickingTask && pickingTask.status === 'PENDING') {
-    pickingTask.status = 'IN_PROGRESS';
-    pickingTask.startedAt = new Date();
-  }
-};
-
-export const scanLot = (
-  pickingTaskId: string,
+export const scanLotOnDeliveryNote = (
+  deliveryNoteId: string,
   productId: string,
   lotNumber: string,
   qty: number
 ): void => {
-  const pickingTask = pickingTasks.find(
-    (pt) => pt.pickingTaskId === pickingTaskId
+  const deliveryNote = deliveryNotes.find(
+    (dn) => dn.deliveryNoteId === deliveryNoteId
   );
-  if (!pickingTask) {
-    throw new Error(`PickingTask ${pickingTaskId} not found`);
+  if (!deliveryNote) {
+    throw new Error(`DeliveryNote ${deliveryNoteId} not found`);
   }
 
-  if (pickingTask.status === 'PENDING') {
-    startPickingTask(pickingTaskId);
+  if (deliveryNote.status !== 'IN_PREPARATION') {
+    throw new Error(
+      `Cannot scan lot on delivery note with status ${deliveryNote.status}`
+    );
   }
 
-  // Add lot to picking task
+  // Auto-set startedAt on first scan
+  if (!deliveryNote.startedAt) {
+    deliveryNote.startedAt = new Date();
+  }
+
   const newLot: ScannedLot = {
     productId,
     lotNumber,
@@ -1148,142 +963,110 @@ export const scanLot = (
     scannedAt: new Date(),
   };
 
-  pickingTask.scannedLots.push(newLot);
+  deliveryNote.scannedLots.push(newLot);
 };
 
-export const completePickingTask = (pickingTaskId: string): void => {
-  const pickingTask = pickingTasks.find(
-    (pt) => pt.pickingTaskId === pickingTaskId
+export const completePreparation = (deliveryNoteId: string): void => {
+  const deliveryNote = deliveryNotes.find(
+    (dn) => dn.deliveryNoteId === deliveryNoteId
   );
-  if (!pickingTask) {
-    throw new Error(`PickingTask ${pickingTaskId} not found`);
+  if (!deliveryNote) {
+    throw new Error(`DeliveryNote ${deliveryNoteId} not found`);
   }
 
-  if (pickingTask.status !== 'IN_PROGRESS') {
+  if (deliveryNote.status !== 'IN_PREPARATION') {
     throw new Error(
-      `Cannot complete picking task with status ${pickingTask.status}`
+      `Le BL doit être en préparation pour être finalisé (statut actuel: ${deliveryNote.status})`
     );
   }
 
-  pickingTask.status = 'COMPLETED';
-  pickingTask.completedAt = new Date();
+  deliveryNote.status = 'PREPARED';
+  deliveryNote.preparedAt = new Date();
 
-  // Create DeliveryNote from PickingTask
-  const deliveryNote = createDeliveryNoteFromPickingTask(pickingTaskId);
-  pickingTask.deliveryNoteId = deliveryNote.deliveryNoteId;
-
-  // Update SalesOrder status (SHIPPED or PARTIALLY_SHIPPED)
-  const remaining = getRemainingQuantities(pickingTask.salesOrderId);
-  const hasRemaining = remaining.some((r) => r.remaining > 0);
-
-  if (hasRemaining) {
-    updateSalesOrderStatus(pickingTask.salesOrderId, 'PARTIALLY_SHIPPED');
-  } else {
-    updateSalesOrderStatus(pickingTask.salesOrderId, 'SHIPPED');
-  }
-};
-
-export const getPickingTask = (
-  pickingTaskId: string
-): PickingTask | undefined => {
-  return pickingTasks.find((pt) => pt.pickingTaskId === pickingTaskId);
-};
-
-export const getPickingTasksBySalesOrder = (
-  salesOrderId: string
-): PickingTask[] => {
-  return pickingTasks.filter((pt) => pt.salesOrderId === salesOrderId);
-};
-
-// ===== DeliveryNote (BL) Functions =====
-export const createDeliveryNoteFromPickingTask = (
-  pickingTaskId: string
-): DeliveryNote => {
-  const pickingTask = getPickingTask(pickingTaskId);
-  if (!pickingTask) {
-    throw new Error(`PickingTask ${pickingTaskId} not found`);
-  }
-
-  const salesOrder = getSalesOrder(pickingTask.salesOrderId);
-  if (!salesOrder) {
-    throw new Error(`SalesOrder ${pickingTask.salesOrderId} not found`);
-  }
-
-  // Calculate actual quantities from scanned lots
+  // Update line quantities from scanned lots (actual quantities)
   const actualQuantities = new Map<string, number>();
-  pickingTask.scannedLots.forEach((lot) => {
+  deliveryNote.scannedLots.forEach((lot) => {
     const current = actualQuantities.get(lot.productId) || 0;
     actualQuantities.set(lot.productId, current + lot.quantity);
   });
 
-  // Create delivery note with frozen snapshot
-  const deliveryNote: DeliveryNote = {
-    deliveryNoteId: `BL-${Date.now()}`,
-    pickingTaskId,
-    number: `BL-${Date.now()}`,
-    client: salesOrder.client,
-    deliveryDate: salesOrder.deliveryDate,
-    status: 'READY_TO_SHIP',
-    lines: Array.from(actualQuantities.entries()).map(
-      ([productId, quantity]) => ({
-        productId,
-        quantity,
-      })
-    ),
-    scannedLots: [...pickingTask.scannedLots], // Copy lots
-    createdAt: new Date(),
-  };
-
-  deliveryNotes.push(deliveryNote);
-  return deliveryNote;
+  deliveryNote.lines = Array.from(actualQuantities.entries()).map(
+    ([productId, quantity]) => ({
+      productId,
+      quantity,
+    })
+  );
 };
 
 export const shipDeliveryNote = (deliveryNoteId: string): void => {
   const deliveryNote = deliveryNotes.find(
     (dn) => dn.deliveryNoteId === deliveryNoteId
   );
-  if (deliveryNote && deliveryNote.status === 'READY_TO_SHIP') {
+  if (deliveryNote && deliveryNote.status === 'PREPARED') {
     deliveryNote.status = 'SHIPPED';
     deliveryNote.shippedAt = new Date();
-    // TODO: Decrement physical stock (inventory movement)
+    // Decrement physical stock (inventory movement)
+    for (const line of deliveryNote.lines) {
+      const product = products.find(p => p.id === line.productId);
+      if (product) {
+        product.stock = Math.max(0, product.stock - line.quantity);
+      }
+    }
+
+    // Update SalesOrder status
+    const remaining = getRemainingQuantities(deliveryNote.salesOrderId);
+    const hasRemaining = remaining.some((r) => r.remaining > 0);
+    if (hasRemaining) {
+      updateSalesOrderStatus(deliveryNote.salesOrderId, 'PARTIALLY_SHIPPED');
+    } else {
+      updateSalesOrderStatus(deliveryNote.salesOrderId, 'SHIPPED');
+    }
   }
 };
 
-export const invoiceDeliveryNote = (deliveryNoteId: string): void => {
-  const deliveryNote = deliveryNotes.find(
-    (dn) => dn.deliveryNoteId === deliveryNoteId
-  );
-  if (deliveryNote && deliveryNote.status === 'SHIPPED') {
-    deliveryNote.status = 'INVOICED';
-    deliveryNote.invoicedAt = new Date();
-
-    // Check if all delivery notes for the parent sales order are invoiced
-    const pickingTask = getPickingTask(deliveryNote.pickingTaskId);
-    if (pickingTask) {
-      const allPickingTasks = getPickingTasksBySalesOrder(
-        pickingTask.salesOrderId
-      );
-      const allDeliveryNotes = allPickingTasks
-        .map((pt) => pt.deliveryNoteId)
-        .filter((id): id is string => !!id)
-        .map((id) => deliveryNotes.find((dn) => dn.deliveryNoteId === id))
-        .filter((dn): dn is DeliveryNote => !!dn);
-
-      const allInvoiced = allDeliveryNotes.every(
-        (dn) => dn.status === 'INVOICED'
-      );
-
-      if (allInvoiced) {
-        updateSalesOrderStatus(pickingTask.salesOrderId, 'INVOICED');
-      }
-    }
-  }
+export const getDeliveryNotesBySalesOrder = (
+  salesOrderId: string
+): DeliveryNote[] => {
+  return deliveryNotes.filter((dn) => dn.salesOrderId === salesOrderId);
 };
 
 export const getDeliveryNote = (
   deliveryNoteId: string
 ): DeliveryNote | undefined => {
   return deliveryNotes.find((dn) => dn.deliveryNoteId === deliveryNoteId);
+};
+
+// ===== Cancel Functions =====
+export const cancelSalesOrder = (salesOrderId: string): void => {
+  const salesOrder = salesOrders.find((so) => so.salesOrderId === salesOrderId);
+  if (!salesOrder) {
+    throw new Error(`SalesOrder ${salesOrderId} not found`);
+  }
+  if (salesOrder.status !== 'DRAFT' && salesOrder.status !== 'CONFIRMED') {
+    throw new Error(
+      `Cannot cancel SalesOrder with status ${salesOrder.status}`
+    );
+  }
+  salesOrder.status = 'CANCELLED';
+};
+
+export const cancelDeliveryNote = (deliveryNoteId: string): void => {
+  const deliveryNote = deliveryNotes.find(
+    (dn) => dn.deliveryNoteId === deliveryNoteId
+  );
+  if (!deliveryNote) {
+    throw new Error(`DeliveryNote ${deliveryNoteId} not found`);
+  }
+  if (deliveryNote.status !== 'IN_PREPARATION') {
+    throw new Error(
+      `Cannot cancel DeliveryNote with status ${deliveryNote.status}`
+    );
+  }
+  // Remove the delivery note
+  const index = deliveryNotes.indexOf(deliveryNote);
+  if (index > -1) {
+    deliveryNotes.splice(index, 1);
+  }
 };
 
 // ===== Remaining Quantities Calculation =====
@@ -1302,24 +1085,18 @@ export const getRemainingQuantities = (
     return [];
   }
 
-  // Get all picking tasks for this sales order
-  const allPickingTasks = getPickingTasksBySalesOrder(salesOrderId);
-
-  // Get all completed picking tasks (which have delivery notes)
-  const completedPickingTasks = allPickingTasks.filter(
-    (pt) => pt.status === 'COMPLETED' && pt.deliveryNoteId
+  // Get all shipped delivery notes for this sales order
+  const shippedNotes = getDeliveryNotesBySalesOrder(salesOrderId).filter(
+    (dn) => dn.status === 'SHIPPED'
   );
 
-  // Calculate delivered quantities from all delivery notes
+  // Calculate delivered quantities from shipped BLs
   const deliveredQuantities = new Map<string, number>();
-  completedPickingTasks.forEach((pt) => {
-    const deliveryNote = getDeliveryNote(pt.deliveryNoteId!);
-    if (deliveryNote) {
-      deliveryNote.lines.forEach((line) => {
-        const current = deliveredQuantities.get(line.productId) || 0;
-        deliveredQuantities.set(line.productId, current + line.quantity);
-      });
-    }
+  shippedNotes.forEach((dn) => {
+    dn.lines.forEach((line) => {
+      const current = deliveredQuantities.get(line.productId) || 0;
+      deliveredQuantities.set(line.productId, current + line.quantity);
+    });
   });
 
   // Calculate remaining quantities
@@ -1345,12 +1122,12 @@ export const calculateSalesOrderStatus = (
   const remaining = getRemainingQuantities(salesOrderId);
   const hasRemaining = remaining.some((r) => r.remaining > 0);
   const hasDelivered = remaining.some((r) => r.delivered > 0);
-  const allPickingTasks = getPickingTasksBySalesOrder(salesOrderId);
-  const hasActivePickingTasks = allPickingTasks.some(
-    (pt) => pt.status === 'PENDING' || pt.status === 'IN_PROGRESS'
+  const allDeliveryNotes = getDeliveryNotesBySalesOrder(salesOrderId);
+  const hasActiveBL = allDeliveryNotes.some(
+    (dn) => dn.status === 'IN_PREPARATION' || dn.status === 'PREPARED'
   );
 
-  if (hasActivePickingTasks) {
+  if (hasActiveBL) {
     return 'IN_PREPARATION';
   } else if (hasDelivered && hasRemaining) {
     return 'PARTIALLY_SHIPPED';
@@ -1363,5 +1140,5 @@ export const calculateSalesOrderStatus = (
 
 // ===== MIGRATION FUNCTION REMOVED =====
 // The old migration function has been completely removed.
-// We now use only the new system: `salesOrders`, `pickingTasks`, and `deliveryNotes`.
+// We now use only the new system: `salesOrders` and `deliveryNotes`.
 // Demo data is initialized via `initializeDemoData()` function.

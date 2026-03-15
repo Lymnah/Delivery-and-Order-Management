@@ -1,14 +1,12 @@
 import type {
   SalesOrderStatus,
   DeliveryNoteStatus,
-  PickingTaskStatus,
   DocumentType,
 } from '../../data/database';
 
 export type OrderStatus =
   | SalesOrderStatus
-  | DeliveryNoteStatus
-  | PickingTaskStatus;
+  | DeliveryNoteStatus;
 
 /**
  * French translation for SalesOrderStatus
@@ -25,26 +23,6 @@ export function getSalesOrderStatusLabelFr(status: SalesOrderStatus): string {
       return 'Partiellement livré';
     case 'SHIPPED':
       return 'Livré';
-    case 'INVOICED':
-      return 'Facturé';
-    case 'CANCELLED':
-      return 'Annulé';
-    default:
-      return status;
-  }
-}
-
-/**
- * French translation for PickingTaskStatus
- */
-export function getPickingTaskStatusLabelFr(status: PickingTaskStatus): string {
-  switch (status) {
-    case 'PENDING':
-      return 'En attente';
-    case 'IN_PROGRESS':
-      return 'En prépa';
-    case 'COMPLETED':
-      return 'Terminé';
     case 'CANCELLED':
       return 'Annulé';
     default:
@@ -59,14 +37,12 @@ export function getDeliveryNoteStatusLabelFr(
   status: DeliveryNoteStatus
 ): string {
   switch (status) {
-    case 'READY_TO_SHIP':
-      return 'Prêt à quai';
+    case 'IN_PREPARATION':
+      return 'En préparation';
+    case 'PREPARED':
+      return 'Préparé';
     case 'SHIPPED':
       return 'Expédié';
-    case 'SIGNED':
-      return 'Signé';
-    case 'INVOICED':
-      return 'Facturé';
     default:
       return status;
   }
@@ -79,9 +55,6 @@ export function getStatusLabelFr(status: OrderStatus): string {
   if (isSalesOrderStatus(status)) {
     return getSalesOrderStatusLabelFr(status);
   }
-  if (isPickingTaskStatus(status)) {
-    return getPickingTaskStatusLabelFr(status);
-  }
   if (isDeliveryNoteStatus(status)) {
     return getDeliveryNoteStatusLabelFr(status);
   }
@@ -89,40 +62,27 @@ export function getStatusLabelFr(status: OrderStatus): string {
 }
 
 // Type guards
-function isSalesOrderStatus(status: OrderStatus): status is SalesOrderStatus {
+export function isSalesOrderStatus(status: OrderStatus): status is SalesOrderStatus {
   return [
     'DRAFT',
     'CONFIRMED',
     'IN_PREPARATION',
     'PARTIALLY_SHIPPED',
     'SHIPPED',
-    'INVOICED',
     'CANCELLED',
   ].includes(status as SalesOrderStatus);
 }
 
-function isPickingTaskStatus(status: OrderStatus): status is PickingTaskStatus {
-  return ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(
-    status as PickingTaskStatus
-  );
-}
-
-function isDeliveryNoteStatus(
+export function isDeliveryNoteStatus(
   status: OrderStatus
 ): status is DeliveryNoteStatus {
-  return ['READY_TO_SHIP', 'SHIPPED', 'SIGNED', 'INVOICED'].includes(
+  return ['IN_PREPARATION', 'PREPARED', 'SHIPPED'].includes(
     status as DeliveryNoteStatus
   );
 }
 
 /**
  * Returns CSS classes for status badge colors
- * - Neutral (gray): DRAFT (SalesOrder), PENDING
- * - Warning (orange): IN_PREPARATION, IN_PROGRESS, PARTIALLY_SHIPPED
- * - Success (green): SHIPPED, INVOICED, COMPLETED
- * - Info (blue): CONFIRMED
- * - Success (green): READY_TO_SHIP (DeliveryNote) - "Prêt à quai" (ready state)
- * - Danger (red): CANCELLED
  */
 export function getStatusBadgeColor(
   status: OrderStatus,
@@ -131,9 +91,8 @@ export function getStatusBadgeColor(
   bg: string;
   text: string;
 } {
-  // Special case: READY_TO_SHIP for DeliveryNote (BL) should be green ("Prêt à quai")
-  // Green because it's a "ready" state (ready to ship), not a pending state
-  if (status === 'READY_TO_SHIP' && documentType === 'BL') {
+  // PREPARED for BL is green (ready to ship)
+  if (status === 'PREPARED' && documentType === 'BL') {
     return {
       bg: 'bg-green-100',
       text: 'text-green-700',
@@ -141,9 +100,8 @@ export function getStatusBadgeColor(
   }
 
   switch (status) {
-    // Neutral (gray) - DRAFT for SalesOrder, PENDING
+    // Neutral (gray) - DRAFT
     case 'DRAFT':
-    case 'PENDING':
       return {
         bg: 'bg-gray-100',
         text: 'text-gray-700',
@@ -151,7 +109,6 @@ export function getStatusBadgeColor(
 
     // Warning (orange)
     case 'IN_PREPARATION':
-    case 'IN_PROGRESS':
     case 'PARTIALLY_SHIPPED':
       return {
         bg: 'bg-orange-100',
@@ -159,10 +116,8 @@ export function getStatusBadgeColor(
       };
 
     // Success (green)
-    case 'INVOICED':
-    case 'COMPLETED':
     case 'SHIPPED':
-    case 'SIGNED':
+    case 'PREPARED':
       return {
         bg: 'bg-green-100',
         text: 'text-green-700',
@@ -212,20 +167,7 @@ export function canTransitionStatus(
       CONFIRMED: ['IN_PREPARATION', 'CANCELLED'],
       IN_PREPARATION: ['PARTIALLY_SHIPPED', 'SHIPPED', 'CANCELLED'],
       PARTIALLY_SHIPPED: ['SHIPPED', 'CANCELLED'],
-      SHIPPED: ['INVOICED'],
-      INVOICED: [], // Terminal state
-      CANCELLED: [], // Terminal state
-    };
-
-    return validTransitions[currentStatus]?.includes(newStatus) ?? false;
-  }
-
-  // BP (Picking Task) transitions
-  if (isPickingTaskStatus(currentStatus) && isPickingTaskStatus(newStatus)) {
-    const validTransitions: Record<PickingTaskStatus, PickingTaskStatus[]> = {
-      PENDING: ['IN_PROGRESS', 'CANCELLED'],
-      IN_PROGRESS: ['COMPLETED', 'CANCELLED'],
-      COMPLETED: [], // Terminal state
+      SHIPPED: [], // Terminal state
       CANCELLED: [], // Terminal state
     };
 
@@ -235,10 +177,9 @@ export function canTransitionStatus(
   // BL (Delivery Note) transitions
   if (isDeliveryNoteStatus(currentStatus) && isDeliveryNoteStatus(newStatus)) {
     const validTransitions: Record<DeliveryNoteStatus, DeliveryNoteStatus[]> = {
-      READY_TO_SHIP: ['SHIPPED'],
-      SHIPPED: ['INVOICED', 'SIGNED'],
-      SIGNED: ['INVOICED'],
-      INVOICED: [], // Terminal state
+      IN_PREPARATION: ['PREPARED'],
+      PREPARED: ['SHIPPED'],
+      SHIPPED: [], // Terminal state
     };
 
     return validTransitions[currentStatus]?.includes(newStatus) ?? false;
@@ -260,29 +201,14 @@ export function getAvailableActions(
       case 'DRAFT':
         return ['Confirmer le BC'];
       case 'CONFIRMED':
-        return ['Créer un BP et préparer'];
+        return ['Créer un BL et préparer'];
       case 'IN_PREPARATION':
-        return ['Voir la préparation en cours'];
+        return ['Voir le BL en préparation'];
       case 'PARTIALLY_SHIPPED':
         return ['Préparer le reliquat'];
       case 'SHIPPED':
         return ['Voir les BL'];
-      case 'INVOICED':
       case 'CANCELLED':
-        return [];
-      default:
-        return [];
-    }
-  }
-
-  // BP (Picking Task) actions
-  if (isPickingTaskStatus(status)) {
-    switch (status) {
-      case 'PENDING':
-        return ['Commencer la préparation'];
-      case 'IN_PROGRESS':
-        return ['Continuer la préparation', 'Terminer la préparation'];
-      case 'COMPLETED':
         return [];
       default:
         return [];
@@ -291,16 +217,13 @@ export function getAvailableActions(
 
   // BL (Delivery Note) actions
   if (isDeliveryNoteStatus(status)) {
-    const deliveryNoteStatus = status as DeliveryNoteStatus;
-    switch (deliveryNoteStatus) {
-      case 'READY_TO_SHIP':
-        return ['Voir le bon de livraison'];
+    switch (status) {
+      case 'IN_PREPARATION':
+        return ['Continuer la préparation'];
+      case 'PREPARED':
+        return ['Expédier le BL'];
       case 'SHIPPED':
-        return ['Créer la facture', 'Voir / imprimer le BL'];
-      case 'SIGNED':
-        return ['Créer la facture', 'Voir / imprimer le BL'];
-      case 'INVOICED':
-        return ['Voir la facture', 'Voir / imprimer le BL'];
+        return ['Voir / imprimer le BL'];
       default:
         return [];
     }
@@ -326,88 +249,10 @@ export function canCancelOrder(
     ].includes(status);
   }
 
-  // BP (Picking Task) can be cancelled before COMPLETED
-  if (isPickingTaskStatus(status)) {
-    return ['PENDING', 'IN_PROGRESS'].includes(status);
-  }
-
-  // BL (Delivery Note) cannot be cancelled once SHIPPED
+  // BL (Delivery Note) can be cancelled when IN_PREPARATION
   if (isDeliveryNoteStatus(status)) {
-    return (status as DeliveryNoteStatus) === 'READY_TO_SHIP';
+    return (status as DeliveryNoteStatus) === 'IN_PREPARATION';
   }
 
   return false;
-}
-
-/**
- * Maps legacy status strings to new status enums
- * Used during migration from legacy Order system to new document model
- */
-export function mapLegacyStatusToNew(
-  legacyStatus: string,
-  documentType?: DocumentType
-): SalesOrderStatus | DeliveryNoteStatus | PickingTaskStatus | null {
-  // Legacy SalesOrder statuses
-  const salesOrderMap: Record<string, SalesOrderStatus> = {
-    Brouillon: 'DRAFT',
-    Confirmé: 'CONFIRMED',
-    'Partiellement livré': 'PARTIALLY_SHIPPED',
-    Livré: 'SHIPPED',
-    Clos: 'INVOICED',
-  };
-
-  // Legacy DeliveryNote statuses
-  const deliveryNoteMap: Record<string, DeliveryNoteStatus> = {
-    'À préparer': 'READY_TO_SHIP', // BL created but not yet shipped
-    'En préparation': 'READY_TO_SHIP', // Actually a BP status, but mapped to BL
-    'Prêt à expédier': 'READY_TO_SHIP',
-    Expédié: 'SHIPPED',
-    Livré: 'SHIPPED', // Same as shipped
-    Facturé: 'INVOICED',
-    Annulé: 'READY_TO_SHIP', // Cancelled, but we'll treat as ready to ship for now
-  };
-
-  // Legacy PickingTask statuses (if any)
-  const pickingTaskMap: Record<string, PickingTaskStatus> = {
-    'En préparation': 'IN_PROGRESS', // This is actually a BP status
-  };
-
-  // Try to map based on document type
-  if (documentType === 'BC' || salesOrderMap[legacyStatus]) {
-    return salesOrderMap[legacyStatus] || null;
-  }
-  if (documentType === 'BL' || deliveryNoteMap[legacyStatus]) {
-    return deliveryNoteMap[legacyStatus] || null;
-  }
-  if (documentType === 'BP' || pickingTaskMap[legacyStatus]) {
-    return pickingTaskMap[legacyStatus] || null;
-  }
-
-  // Fallback: try all maps
-  return (
-    salesOrderMap[legacyStatus] ||
-    deliveryNoteMap[legacyStatus] ||
-    pickingTaskMap[legacyStatus] ||
-    null
-  );
-}
-
-/**
- * Checks if a status string is a legacy status
- */
-export function isLegacyStatus(status: string): boolean {
-  const legacyStatuses = [
-    'Brouillon',
-    'Confirmé',
-    'Partiellement livré',
-    'Livré',
-    'Clos',
-    'À préparer',
-    'En préparation',
-    'Prêt à expédier',
-    'Expédié',
-    'Facturé',
-    'Annulé',
-  ];
-  return legacyStatuses.includes(status);
 }
