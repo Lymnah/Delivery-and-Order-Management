@@ -1,11 +1,7 @@
 import {
   addDays,
-  endOfWeek,
-  endOfMonth,
   isSameDay,
-  startOfWeek,
 } from 'date-fns';
-import { fr } from 'date-fns/locale';
 import imgCarrefour from '../assets/82264df74cfb0ad9b8b7d222f17c9903ba0ef774.png';
 import imgAuchan from '../assets/7fb2f94785e10950b962ede3941d2b615170f658.png';
 import imgLeclerc from '../assets/f72a75971070d98086cdb19e75c4fe4c0de8edf3.png';
@@ -227,562 +223,373 @@ export let salesOrders: SalesOrder[] = [];
 // Delivery Notes (BL) - Mutable for demo
 export let deliveryNotes: DeliveryNote[] = [];
 
+// ===== HELPERS =====
+// Prix unitaire HT par produit (€)
+const unitPrices: Record<string, number> = {
+  '1': 4.50, // Tapenade Noire
+  '2': 4.50, // Tapenade Verte
+  '3': 3.80, // Houmous Original
+  '4': 5.20, // Caviar d'Aubergine
+  '5': 4.80, // Tapenade Violette
+  '6': 3.50, // Tzatziki
+};
+
+// Codes produits pour les numéros de lot
+const productCodes: Record<string, string> = {
+  '1': 'TN', '2': 'TV', '3': 'HO', '4': 'CA', '5': 'TP', '6': 'TZ',
+};
+
+function computeTotalHT(items: OrderItem[]): number {
+  return Math.round(items.reduce((sum, item) => sum + item.quantity * (unitPrices[item.productId] || 10), 0) * 100) / 100;
+}
+
+// Simple deterministic pseudo-random based on a seed
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
 // ===== DEMO DATA INITIALIZATION =====
 /**
- * Initialize demo data with fixed initial conditions
- * Called on module load to ensure consistent demo state
+ * Initialize demo data with deterministic, realistic business patterns.
+ * Carrefour = gros client (~45% du CA), Auchan = moyen (~35%), Leclerc = petit (~20%)
+ * Commandes passées les mardi et jeudi (jours de livraison habituels grande distribution)
  */
 function initializeDemoData() {
   const today = getToday();
+  const rand = seededRandom(42);
 
-  // Clear existing data
   salesOrders = [];
   deliveryNotes = [];
 
-  // ===== 3 BC (Sales Orders) for today =====
+  let bcCounter = 1;
+  let blCounter = 1;
 
-  // BC 1: Carrefour - CONFIRMED (stock OK)
-  const bc1: SalesOrder = {
-    salesOrderId: 'BC-DEMO-001',
-    number: 'BC-2025-001',
-    client: 'Carrefour',
-    deliveryDate: today,
-    items: [
-      { productId: '1', quantity: 100 }, // Tapenade Noire (stock: 250) ✅
-      { productId: '2', quantity: 150 }, // Tapenade Verte (stock: 320) ✅
-    ],
-    createdAt: addDays(today, -5),
-    totalHT: 2500,
-    status: 'CONFIRMED',
+  const bcNum = () => {
+    const n = `BC-2026-${String(bcCounter).padStart(4, '0')}`;
+    bcCounter++;
+    return n;
+  };
+  const blNum = () => {
+    const n = `BL-2026-${String(blCounter).padStart(4, '0')}`;
+    blCounter++;
+    return n;
+  };
+  const bcId = (num: string) => `so-${num}`;
+  const blId = (num: string) => `dn-${num}`;
+
+  // ===== Commandes récurrentes par client (profils réalistes) =====
+  // Carrefour commande 2x/semaine (mar+jeu), gros volumes
+  // Auchan commande 1-2x/semaine (mercredi), volumes moyens
+  // Leclerc commande 1x/semaine (vendredi), petits volumes
+
+  type ClientProfile = {
+    name: string;
+    deliveryDays: number[]; // 0=dim, 1=lun, 2=mar, 3=mer, 4=jeu, 5=ven, 6=sam
+    orderTemplates: OrderItem[][];
   };
 
-  // BC 2: Auchan - CONFIRMED (stock partiel)
-  const bc2: SalesOrder = {
-    salesOrderId: 'BC-DEMO-002',
-    number: 'BC-2025-002',
-    client: 'Auchan',
-    deliveryDate: today,
-    items: [
-      { productId: '4', quantity: 200 }, // Caviar d'Aubergine (stock: 180) ⚠️ PARTIAL
-      { productId: '3', quantity: 100 }, // Houmous Original (stock: 450) ✅
-    ],
-    createdAt: addDays(today, -3),
-    totalHT: 3000,
-    status: 'CONFIRMED',
-  };
-
-  // BC 3: Leclerc - CONFIRMED (stock OK)
-  const bc3: SalesOrder = {
-    salesOrderId: 'BC-DEMO-003',
-    number: 'BC-2025-003',
-    client: 'Leclerc',
-    deliveryDate: today,
-    items: [
-      { productId: '1', quantity: 80 }, // Tapenade Noire (stock: 250) ✅
-      { productId: '3', quantity: 120 }, // Houmous Original (stock: 450) ✅
-    ],
-    createdAt: addDays(today, -2),
-    totalHT: 2000,
-    status: 'CONFIRMED',
-  };
-
-  // Tous les BC restent en CONFIRMED pour être visibles
-  salesOrders.push(bc1, bc2, bc3);
-
-  // ===== 1 BL en préparation for today =====
-  // BL créé à partir de BC4
-  const bc4: SalesOrder = {
-    salesOrderId: 'BC-DEMO-004',
-    number: 'BC-2025-004',
-    client: 'Carrefour',
-    deliveryDate: today,
-    items: [
-      { productId: '1', quantity: 50 },
-      { productId: '2', quantity: 75 },
-    ],
-    createdAt: addDays(today, -4),
-    totalHT: 1250,
-    status: 'IN_PREPARATION',
-  };
-
-  const bl_prep: DeliveryNote = {
-    deliveryNoteId: 'BL-DEMO-PREP-001',
-    salesOrderId: 'BC-DEMO-004',
-    number: 'BL-2025-PREP-001',
-    client: 'Carrefour',
-    deliveryDate: today,
-    status: 'IN_PREPARATION',
-    lines: [
-      { productId: '1', quantity: 50 },
-      { productId: '2', quantity: 75 },
-    ],
-    scannedLots: [
-      {
-        productId: '1',
-        lotNumber: 'LOT-TN-2025-002',
-        quantity: 50,
-        scannedAt: addDays(today, -1),
-      },
-      {
-        productId: '2',
-        lotNumber: 'LOT-TV-2025-002',
-        quantity: 45,
-        scannedAt: addDays(today, -1),
-      },
-    ],
-    createdAt: addDays(today, -1),
-    startedAt: addDays(today, -1),
-  };
-
-  salesOrders.push(bc4); // BC4 sera masqué par le BL (déduplication)
-  deliveryNotes.push(bl_prep);
-
-  // ===== 1 BL préparé (prêt à expédier) for today =====
-  const bc5: SalesOrder = {
-    salesOrderId: 'BC-DEMO-005',
-    number: 'BC-2025-005',
-    client: 'Leclerc',
-    deliveryDate: today,
-    items: [
-      { productId: '3', quantity: 200 },
-      { productId: '4', quantity: 50 },
-    ],
-    createdAt: addDays(today, -6),
-    totalHT: 2500,
-    status: 'IN_PREPARATION',
-  };
-
-  const bl1: DeliveryNote = {
-    deliveryNoteId: 'BL-DEMO-001',
-    salesOrderId: 'BC-DEMO-005',
-    number: 'BL-2025-001',
-    client: 'Leclerc',
-    deliveryDate: today,
-    status: 'PREPARED',
-    lines: [
-      { productId: '3', quantity: 200 },
-      { productId: '4', quantity: 50 },
-    ],
-    scannedLots: [
-      {
-        productId: '3',
-        lotNumber: 'LOT-HO-2025-002',
-        quantity: 200,
-        scannedAt: addDays(today, -2),
-      },
-      {
-        productId: '4',
-        lotNumber: 'LOT-CA-2025-002',
-        quantity: 50,
-        scannedAt: addDays(today, -2),
-      },
-    ],
-    createdAt: addDays(today, -2),
-    preparedAt: addDays(today, -1),
-  };
-
-  salesOrders.push(bc5); // BC5 sera masqué par le BL (déduplication)
-  deliveryNotes.push(bl1);
-
-  // ===== Past orders (1 per day for the last 15 days) =====
-  // Create SHIPPED or INVOICED orders in the past to test "Voir précédents" functionality
-  const pastClients = ['Carrefour', 'Auchan', 'Leclerc'];
-  const productsForPastOrders = [
-    { productId: '1', quantity: 50 },
-    { productId: '2', quantity: 75 },
-    { productId: '3', quantity: 100 },
+  const clientProfiles: ClientProfile[] = [
+    {
+      name: 'Carrefour',
+      deliveryDays: [2, 4], // Mardi et jeudi
+      orderTemplates: [
+        // Commande type 1 : gamme complète
+        [
+          { productId: '1', quantity: 120 },
+          { productId: '2', quantity: 100 },
+          { productId: '3', quantity: 200 },
+        ],
+        // Commande type 2 : tapenades + spécialités
+        [
+          { productId: '1', quantity: 80 },
+          { productId: '4', quantity: 60 },
+          { productId: '6', quantity: 90 },
+        ],
+        // Commande type 3 : best-sellers
+        [
+          { productId: '3', quantity: 180 },
+          { productId: '1', quantity: 150 },
+        ],
+        // Commande type 4 : grosse commande houmous
+        [
+          { productId: '3', quantity: 250 },
+          { productId: '2', quantity: 120 },
+          { productId: '5', quantity: 40 },
+        ],
+      ],
+    },
+    {
+      name: 'Auchan',
+      deliveryDays: [3], // Mercredi
+      orderTemplates: [
+        [
+          { productId: '1', quantity: 80 },
+          { productId: '3', quantity: 120 },
+        ],
+        [
+          { productId: '2', quantity: 60 },
+          { productId: '4', quantity: 50 },
+          { productId: '6', quantity: 70 },
+        ],
+        [
+          { productId: '3', quantity: 150 },
+          { productId: '5', quantity: 30 },
+        ],
+      ],
+    },
+    {
+      name: 'Leclerc',
+      deliveryDays: [5], // Vendredi
+      orderTemplates: [
+        [
+          { productId: '1', quantity: 60 },
+          { productId: '3', quantity: 80 },
+        ],
+        [
+          { productId: '2', quantity: 50 },
+          { productId: '4', quantity: 40 },
+        ],
+        [
+          { productId: '3', quantity: 100 },
+          { productId: '6', quantity: 45 },
+          { productId: '5', quantity: 25 },
+        ],
+      ],
+    },
   ];
 
-  for (let i = 1; i <= 15; i++) {
-    const pastDate = addDays(today, -i);
-    const client = pastClients[i % pastClients.length];
-    const orderItems = [
-      productsForPastOrders[i % productsForPastOrders.length],
-      productsForPastOrders[(i + 1) % productsForPastOrders.length],
-    ];
-
-    // Create a BC that was shipped in the past
-    const pastBC: SalesOrder = {
-      salesOrderId: `BC-PAST-${String(i).padStart(3, '0')}`,
-      number: `BC-2025-PAST-${String(i).padStart(3, '0')}`,
-      client: client,
-      deliveryDate: pastDate,
-      items: orderItems,
-      createdAt: addDays(pastDate, -Math.floor(Math.random() * 5) - 1),
-      totalHT: orderItems.reduce((sum, item) => sum + item.quantity * 10, 0),
-      status: 'SHIPPED',
-    };
-
-    salesOrders.push(pastBC);
-
-    // Create corresponding BL for shipped orders
-    const deliveryNoteLines = orderItems.map((item) => ({
-      productId: item.productId,
-      quantity: item.quantity,
-    }));
-
-    const pastBL: DeliveryNote = {
-      deliveryNoteId: `BL-PAST-${String(i).padStart(3, '0')}`,
-      salesOrderId: `BC-PAST-${String(i).padStart(3, '0')}`,
-      number: `BL-2025-PAST-${String(i).padStart(3, '0')}`,
-      client: client,
-      deliveryDate: pastDate,
-      status: 'SHIPPED',
-      lines: deliveryNoteLines,
-      scannedLots: orderItems.map((item) => ({
-        productId: item.productId,
-        lotNumber: `LOT-PAST-${i}-${item.productId}`,
-        quantity: item.quantity,
-        scannedAt: addDays(pastDate, -1),
-      })),
-      createdAt: addDays(pastDate, -1),
-      preparedAt: addDays(pastDate, -1),
-      shippedAt: pastDate,
-    };
-
-    deliveryNotes.push(pastBL);
-  }
-
-  // Résultat final dans la Master List :
-  // - BC1 (Carrefour) : CONFIRMED → visible comme BC bleu
-  // - BC2 (Auchan) : CONFIRMED → visible comme BC bleu
-  // - BC3 (Leclerc) : CONFIRMED → visible comme BC bleu
-  // - BL-PREP (Carrefour) : remplace BC4 → visible comme BL en préparation orange
-  // - BL1 (Leclerc) : remplace BC5 → visible comme BL préparé vert
-  // Total : 3 BC + 2 BL = 5 éléments
-
-  // ===== Données de test pour les 6 prochains mois =====
-  const clients = ['Carrefour', 'Auchan', 'Leclerc'];
-
-  // Produits avec stocks OK (1, 2, 3)
-  const productsInStock = ['1', '2', '3'];
-  // Produits avec stocks faibles (4, 5, 6)
-  const productsLowStock = ['4', '5', '6'];
-
-  // Stocks disponibles par produit (pour calculer les problèmes de stock)
-  const productStocks: Record<string, number> = {
-    '1': 250, // Tapenade Noire
-    '2': 320, // Tapenade Verte
-    '3': 450, // Houmous Original
-    '4': 180, // Caviar d'Aubergine (moyen)
-    '5': 80, // Tapenade Violette (LOW)
-    '6': 60, // Tzatziki (LOW)
+  // Petite variation de quantité (+/- 15%) pour que ce ne soit pas identique
+  const varyQty = (qty: number): number => {
+    const factor = 0.85 + rand() * 0.30;
+    return Math.round(qty * factor);
   };
 
-  // Générer des commandes pour chaque mois (environ 8-12 commandes par mois)
-  for (let monthOffset = 1; monthOffset <= 6; monthOffset++) {
-    const monthDate = addDays(today, monthOffset * 30); // Approximativement chaque mois
+  const pickTemplate = (templates: OrderItem[][]): OrderItem[] => {
+    const idx = Math.floor(rand() * templates.length);
+    return templates[idx].map(item => ({ ...item, quantity: varyQty(item.quantity) }));
+  };
 
-    // 8-12 commandes par mois
-    const ordersPerMonth = 8 + Math.floor(Math.random() * 5);
+  // ===== PASSÉ : 21 jours (3 semaines) — toutes expédiées =====
+  for (let dayOffset = 21; dayOffset >= 1; dayOffset--) {
+    const date = addDays(today, -dayOffset);
+    const dayOfWeek = date.getDay();
 
-    for (let i = 0; i < ordersPerMonth; i++) {
-      const orderDate = addDays(monthDate, Math.floor(Math.random() * 28)); // Répartir sur le mois
-      const client = clients[Math.floor(Math.random() * clients.length)];
-      const orderNumber = `BC-2025-${String(monthOffset).padStart(
-        2,
-        '0'
-      )}${String(i + 1).padStart(3, '0')}`;
-      const salesOrderId = `BC-MONTH-${monthOffset}-${i + 1}`;
+    for (const profile of clientProfiles) {
+      if (!profile.deliveryDays.includes(dayOfWeek)) continue;
 
-      // Déterminer si cette commande aura des problèmes de stock (20% des cas)
-      const hasStockIssue = Math.random() < 0.2;
+      const num = bcNum();
+      const items = pickTemplate(profile.orderTemplates);
+      const createdAt = addDays(date, -3); // Commandé 3 jours avant livraison
 
-      // Générer 2-4 produits par commande
-      const numProducts = 2 + Math.floor(Math.random() * 3);
-      const items: Array<{ productId: string; quantity: number }> = [];
-      const usedProducts = new Set<string>();
-
-      for (let j = 0; j < numProducts; j++) {
-        let productId: string;
-        let quantity: number;
-
-        if (hasStockIssue) {
-          // Pour les commandes avec problèmes de stock, utiliser les produits en stock faible
-          const availableLowStock = productsLowStock.filter(
-            (pid) => !usedProducts.has(pid)
-          );
-
-          if (availableLowStock.length > 0) {
-            // Utiliser un produit en stock faible
-            productId =
-              availableLowStock[
-                Math.floor(Math.random() * availableLowStock.length)
-              ];
-            const stock = productStocks[productId];
-
-            // Créer une quantité qui dépasse le stock disponible pour créer un problème
-            // 60% de chance d'OUT_OF_STOCK (dépasse complètement), 40% de PARTIAL (dépasse partiellement)
-            if (Math.random() < 0.6) {
-              // OUT_OF_STOCK : quantité = stock * (1.2 à 2.0)
-              quantity = Math.floor(stock * (1.2 + Math.random() * 0.8));
-            } else {
-              // PARTIAL : quantité = stock * (0.8 à 1.1) - juste au-dessus du stock
-              quantity = Math.floor(stock * (0.8 + Math.random() * 0.3));
-            }
-          } else {
-            // Si tous les produits en stock faible sont déjà utilisés, utiliser un produit OK
-            const availableInStock = productsInStock.filter(
-              (pid) => !usedProducts.has(pid)
-            );
-            productId =
-              availableInStock[
-                Math.floor(Math.random() * availableInStock.length)
-              ];
-            quantity = 50 + Math.floor(Math.random() * 200); // Quantités normales
-          }
-        } else {
-          // Pour les commandes sans problème (80%), utiliser uniquement les produits en stock OK
-          const availableInStock = productsInStock.filter(
-            (pid) => !usedProducts.has(pid)
-          );
-
-          if (availableInStock.length > 0) {
-            productId =
-              availableInStock[
-                Math.floor(Math.random() * availableInStock.length)
-              ];
-            // Quantités raisonnables qui ne dépassent pas le stock
-            const stock = productStocks[productId];
-            quantity = Math.floor(stock * (0.1 + Math.random() * 0.4)); // 10-50% du stock
-          } else {
-            // Fallback si tous les produits OK sont utilisés
-            productId =
-              productsInStock[
-                Math.floor(Math.random() * productsInStock.length)
-              ];
-            quantity = 50 + Math.floor(Math.random() * 200);
-          }
-        }
-
-        usedProducts.add(productId);
-        items.push({
-          productId,
-          quantity,
-        });
-      }
-
-      const salesOrder: SalesOrder = {
-        salesOrderId,
-        number: orderNumber,
-        client,
-        deliveryDate: orderDate,
+      const bc: SalesOrder = {
+        salesOrderId: bcId(num),
+        number: num,
+        client: profile.name,
+        deliveryDate: date,
         items,
-        createdAt: addDays(orderDate, -Math.floor(Math.random() * 10) - 1), // Créé 1-10 jours avant
-        totalHT: items.reduce((sum, item) => sum + item.quantity * 10, 0), // Prix approximatif
-        status: 'CONFIRMED',
+        createdAt,
+        totalHT: computeTotalHT(items),
+        status: 'SHIPPED',
       };
+      salesOrders.push(bc);
 
-      salesOrders.push(salesOrder);
-
-      // Pour environ 20% des commandes, créer un BL en préparation
-      if (Math.random() < 0.2) {
-        const blStatus: DeliveryNoteStatus = Math.random() < 0.5 ? 'IN_PREPARATION' : 'IN_PREPARATION';
-        const deliveryNote: DeliveryNote = {
-          deliveryNoteId: `BL-MONTH-${monthOffset}-${i + 1}-PREP`,
-          salesOrderId,
-          number: `BL-2025-${String(monthOffset).padStart(2, '0')}${String(i + 1).padStart(3, '0')}-P`,
-          client,
-          deliveryDate: orderDate,
-          status: blStatus,
-          lines: items,
-          scannedLots: [],
-          createdAt: addDays(orderDate, -Math.floor(Math.random() * 5)),
-          startedAt: Math.random() < 0.5 ? addDays(orderDate, -Math.floor(Math.random() * 3)) : undefined,
-        };
-
-        // Add some scanned lots
-        items.forEach((item, idx) => {
-          if (Math.random() < 0.7) {
-            const scannedQty = Math.floor(item.quantity * (0.3 + Math.random() * 0.7));
-            deliveryNote.scannedLots.push({
-              productId: item.productId,
-              lotNumber: `LOT-${item.productId}-${monthOffset}-${i}-${idx}`,
-              quantity: scannedQty,
-              scannedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
-            });
-          }
-        });
-
-        deliveryNotes.push(deliveryNote);
-        salesOrder.status = 'IN_PREPARATION';
-      }
-
-      // Pour environ 10% des commandes, créer un BL préparé ou expédié
-      if (Math.random() < 0.1) {
-        const isShipped = Math.random() < 0.5;
-        const deliveryNote: DeliveryNote = {
-          deliveryNoteId: `BL-MONTH-${monthOffset}-${i + 1}`,
-          salesOrderId,
-          number: `BL-2025-${String(monthOffset).padStart(2, '0')}${String(i + 1).padStart(3, '0')}`,
-          client,
-          deliveryDate: orderDate,
-          status: isShipped ? 'SHIPPED' : 'PREPARED',
-          lines: items,
-          scannedLots: items.map((item, idx) => ({
-            productId: item.productId,
-            lotNumber: `LOT-${item.productId}-${monthOffset}-${i}-${idx}`,
-            quantity: item.quantity,
-            scannedAt: addDays(orderDate, -Math.floor(Math.random() * 5)),
-          })),
-          createdAt: addDays(orderDate, -Math.floor(Math.random() * 3)),
-          preparedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
-          shippedAt: isShipped ? orderDate : undefined,
-        };
-
-        deliveryNotes.push(deliveryNote);
-        salesOrder.status = isShipped ? 'SHIPPED' : 'IN_PREPARATION';
-      }
+      const blNumber = blNum();
+      const bl: DeliveryNote = {
+        deliveryNoteId: blId(blNumber),
+        salesOrderId: bcId(num),
+        number: blNumber,
+        client: profile.name,
+        deliveryDate: date,
+        status: 'SHIPPED',
+        lines: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+        scannedLots: items.map(item => ({
+          productId: item.productId,
+          lotNumber: `LOT-${productCodes[item.productId]}-2026-${String(Math.floor(rand() * 50) + 1).padStart(3, '0')}`,
+          quantity: item.quantity,
+          scannedAt: addDays(date, -1),
+        })),
+        createdAt: addDays(date, -1),
+        preparedAt: addDays(date, -1),
+        shippedAt: date,
+      };
+      deliveryNotes.push(bl);
     }
   }
 
-  // ===== Commandes spécifiques pour une période de ~4 semaines à partir d'aujourd'hui =====
-  // Calculer les dates de début et fin
-  const startDate = today; // Start from today
-  const endDate = addDays(today, 31); // ~4 weeks from today
+  // ===== AUJOURD'HUI =====
 
-  // Trouver le lundi de la semaine de début
-  const mondayStart = startOfWeek(startDate, { locale: fr });
+  // 1) BC Carrefour — CONFIRMED, stock OK (à préparer)
+  {
+    const num = bcNum();
+    const items: OrderItem[] = [
+      { productId: '1', quantity: 120 },
+      { productId: '3', quantity: 200 },
+      { productId: '2', quantity: 100 },
+    ];
+    salesOrders.push({
+      salesOrderId: bcId(num),
+      number: num,
+      client: 'Carrefour',
+      deliveryDate: today,
+      items,
+      createdAt: addDays(today, -3),
+      totalHT: computeTotalHT(items),
+      status: 'CONFIRMED',
+    });
+  }
 
-  // Calculer le nombre de semaines entre les deux dates
-  const weeksDiff = Math.ceil(
-    (endDate.getTime() - mondayStart.getTime()) / (1000 * 60 * 60 * 24 * 7)
-  );
+  // 2) BC Auchan — CONFIRMED, stock partiel (Caviar d'Aubergine dépasse stock)
+  {
+    const num = bcNum();
+    const items: OrderItem[] = [
+      { productId: '4', quantity: 200 }, // stock: 180 → PARTIAL
+      { productId: '3', quantity: 100 },
+    ];
+    salesOrders.push({
+      salesOrderId: bcId(num),
+      number: num,
+      client: 'Auchan',
+      deliveryDate: today,
+      items,
+      createdAt: addDays(today, -4),
+      totalHT: computeTotalHT(items),
+      status: 'CONFIRMED',
+    });
+  }
 
-  // Créer au moins 3 commandes par semaine
-  let orderCounter = 1;
-  for (let weekOffset = 0; weekOffset < weeksDiff; weekOffset++) {
-    const weekStart = addDays(mondayStart, weekOffset * 7);
-    const weekEnd = addDays(weekStart, 6); // Dimanche de la semaine
+  // 3) BC Leclerc — CONFIRMED, stock OK
+  {
+    const num = bcNum();
+    const items: OrderItem[] = [
+      { productId: '1', quantity: 60 },
+      { productId: '6', quantity: 45 },
+    ];
+    salesOrders.push({
+      salesOrderId: bcId(num),
+      number: num,
+      client: 'Leclerc',
+      deliveryDate: today,
+      items,
+      createdAt: addDays(today, -5),
+      totalHT: computeTotalHT(items),
+      status: 'CONFIRMED',
+    });
+  }
 
-    // Créer 3-5 commandes par semaine
-    const ordersPerWeek = 3 + Math.floor(Math.random() * 3);
+  // 4) BC Carrefour → BL en préparation (partiellement scanné)
+  {
+    const num = bcNum();
+    const items: OrderItem[] = [
+      { productId: '1', quantity: 80 },
+      { productId: '2', quantity: 60 },
+      { productId: '3', quantity: 150 },
+    ];
+    const bc: SalesOrder = {
+      salesOrderId: bcId(num),
+      number: num,
+      client: 'Carrefour',
+      deliveryDate: today,
+      items,
+      createdAt: addDays(today, -4),
+      totalHT: computeTotalHT(items),
+      status: 'IN_PREPARATION',
+    };
+    salesOrders.push(bc);
 
-    for (let i = 0; i < ordersPerWeek; i++) {
-      // Répartir les commandes sur la semaine (lundi à jeudi pour la dernière semaine)
-      const dayOffset = Math.floor(
-        Math.random() * (weekOffset === weeksDiff - 1 ? 4 : 7)
-      ); // 0-3 pour dernière semaine, 0-6 pour les autres
-      const orderDate = addDays(weekStart, dayOffset);
+    const blNumber = blNum();
+    deliveryNotes.push({
+      deliveryNoteId: blId(blNumber),
+      salesOrderId: bcId(num),
+      number: blNumber,
+      client: 'Carrefour',
+      deliveryDate: today,
+      status: 'IN_PREPARATION',
+      lines: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+      scannedLots: [
+        { productId: '1', lotNumber: 'LOT-TN-2026-048', quantity: 80, scannedAt: addDays(today, 0) },
+        { productId: '2', lotNumber: 'LOT-TV-2026-031', quantity: 35, scannedAt: addDays(today, 0) },
+        // Produit 3 pas encore scanné
+      ],
+      createdAt: addDays(today, -1),
+      startedAt: today,
+    });
+  }
 
-      // Ne pas dépasser la date de fin (jeudi 22.01.26)
-      if (orderDate > endDate) continue;
+  // 5) BC Leclerc → BL préparé (prêt à expédier)
+  {
+    const num = bcNum();
+    const items: OrderItem[] = [
+      { productId: '3', quantity: 100 },
+      { productId: '5', quantity: 25 },
+    ];
+    const bc: SalesOrder = {
+      salesOrderId: bcId(num),
+      number: num,
+      client: 'Leclerc',
+      deliveryDate: today,
+      items,
+      createdAt: addDays(today, -6),
+      totalHT: computeTotalHT(items),
+      status: 'IN_PREPARATION',
+    };
+    salesOrders.push(bc);
 
-      const client = clients[Math.floor(Math.random() * clients.length)];
-      const orderNumber = `BC-2025-WEEK-${String(weekOffset + 1).padStart(
-        2,
-        '0'
-      )}-${String(i + 1).padStart(2, '0')}`;
-      const salesOrderId = `BC-WEEK-${weekOffset + 1}-${i + 1}`;
+    const blNumber = blNum();
+    deliveryNotes.push({
+      deliveryNoteId: blId(blNumber),
+      salesOrderId: bcId(num),
+      number: blNumber,
+      client: 'Leclerc',
+      deliveryDate: today,
+      status: 'PREPARED',
+      lines: items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+      scannedLots: [
+        { productId: '3', lotNumber: 'LOT-HO-2026-052', quantity: 100, scannedAt: addDays(today, -1) },
+        { productId: '5', lotNumber: 'LOT-TP-2026-009', quantity: 25, scannedAt: addDays(today, -1) },
+      ],
+      createdAt: addDays(today, -2),
+      startedAt: addDays(today, -1),
+      preparedAt: today,
+    });
+  }
 
-      // Générer 2-4 produits par commande
-      const numProducts = 2 + Math.floor(Math.random() * 3);
-      const items: Array<{ productId: string; quantity: number }> = [];
-      const usedProducts = new Set<string>();
+  // ===== FUTUR : 4 semaines — BC confirmées, suivant les profils clients =====
+  for (let dayOffset = 1; dayOffset <= 28; dayOffset++) {
+    const date = addDays(today, dayOffset);
+    const dayOfWeek = date.getDay();
 
-      // 80% des commandes avec stock OK, 20% avec problèmes de stock
-      const hasStockIssue = Math.random() < 0.2;
+    for (const profile of clientProfiles) {
+      if (!profile.deliveryDays.includes(dayOfWeek)) continue;
 
-      for (let j = 0; j < numProducts; j++) {
-        let productId: string;
-        let quantity: number;
+      const num = bcNum();
+      const items = pickTemplate(profile.orderTemplates);
+      const createdAt = addDays(date, -3);
 
-        if (hasStockIssue) {
-          const availableLowStock = productsLowStock.filter(
-            (pid) => !usedProducts.has(pid)
-          );
-
-          if (availableLowStock.length > 0) {
-            productId =
-              availableLowStock[
-                Math.floor(Math.random() * availableLowStock.length)
-              ];
-            const stock = productStocks[productId];
-
-            if (Math.random() < 0.6) {
-              quantity = Math.floor(stock * (1.2 + Math.random() * 0.8));
-            } else {
-              quantity = Math.floor(stock * (0.8 + Math.random() * 0.3));
-            }
-          } else {
-            const availableInStock = productsInStock.filter(
-              (pid) => !usedProducts.has(pid)
-            );
-            productId =
-              availableInStock[
-                Math.floor(Math.random() * availableInStock.length)
-              ];
-            quantity = 50 + Math.floor(Math.random() * 200);
-          }
-        } else {
-          const availableInStock = productsInStock.filter(
-            (pid) => !usedProducts.has(pid)
-          );
-
-          if (availableInStock.length > 0) {
-            productId =
-              availableInStock[
-                Math.floor(Math.random() * availableInStock.length)
-              ];
-            const stock = productStocks[productId];
-            quantity = Math.floor(stock * (0.1 + Math.random() * 0.4));
-          } else {
-            productId =
-              productsInStock[
-                Math.floor(Math.random() * productsInStock.length)
-              ];
-            quantity = 50 + Math.floor(Math.random() * 200);
-          }
+      // ~15% des commandes futures ont un problème de stock (quantités excessives sur produits faibles)
+      const hasStockIssue = rand() < 0.15;
+      if (hasStockIssue) {
+        // Ajouter un produit à stock faible avec quantité excessive
+        const lowStockProduct = rand() < 0.5 ? '5' : '6';
+        const alreadyHas = items.some(i => i.productId === lowStockProduct);
+        if (!alreadyHas) {
+          items.push({ productId: lowStockProduct, quantity: lowStockProduct === '5' ? 120 : 100 });
         }
-
-        usedProducts.add(productId);
-        items.push({ productId, quantity });
       }
 
-      const salesOrder: SalesOrder = {
-        salesOrderId,
-        number: orderNumber,
-        client,
-        deliveryDate: orderDate,
+      salesOrders.push({
+        salesOrderId: bcId(num),
+        number: num,
+        client: profile.name,
+        deliveryDate: date,
         items,
-        createdAt: addDays(orderDate, -Math.floor(Math.random() * 10) - 1),
-        totalHT: items.reduce((sum, item) => sum + item.quantity * 10, 0),
+        createdAt,
+        totalHT: computeTotalHT(items),
         status: 'CONFIRMED',
-      };
-
-      salesOrders.push(salesOrder);
-      orderCounter++;
-
-      // Pour environ 20% des commandes, créer un BL en préparation
-      if (Math.random() < 0.2) {
-        const weekBL: DeliveryNote = {
-          deliveryNoteId: `BL-WEEK-${weekOffset + 1}-${i + 1}`,
-          salesOrderId,
-          number: `BL-WEEK-${String(weekOffset + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`,
-          client,
-          deliveryDate: orderDate,
-          status: 'IN_PREPARATION',
-          lines: items,
-          scannedLots: [],
-          createdAt: addDays(orderDate, -Math.floor(Math.random() * 5)),
-          startedAt: Math.random() < 0.5 ? addDays(orderDate, -Math.floor(Math.random() * 3)) : undefined,
-        };
-
-        items.forEach((item, idx) => {
-          if (Math.random() < 0.7) {
-            const scannedQty = Math.floor(item.quantity * (0.3 + Math.random() * 0.7));
-            weekBL.scannedLots.push({
-              productId: item.productId,
-              lotNumber: `LOT-${item.productId}-WEEK-${weekOffset}-${i}-${idx}`,
-              quantity: scannedQty,
-              scannedAt: addDays(orderDate, -Math.floor(Math.random() * 2)),
-            });
-          }
-        });
-
-        deliveryNotes.push(weekBL);
-        salesOrder.status = 'IN_PREPARATION';
-      }
+      });
     }
   }
 }
