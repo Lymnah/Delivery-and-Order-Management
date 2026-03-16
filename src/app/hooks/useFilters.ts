@@ -9,7 +9,7 @@ export type ActiveMode = 'period' | 'documents';
  * Hook to manage filter state and navigation
  */
 export const useFilters = (initialDate: Date) => {
-  const [timeRange, setTimeRange] = useState<TimeRange>('all');
+  const [timeRange, setTimeRange] = useState<TimeRange>('today');
   const [filterReferenceDate, setFilterReferenceDate] = useState(initialDate);
   const [customStartDate, setCustomStartDate] = useState<Dayjs | null>(null);
   const [customEndDate, setCustomEndDate] = useState<Dayjs | null>(null);
