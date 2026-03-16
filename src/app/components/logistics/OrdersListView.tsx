@@ -46,8 +46,10 @@ interface OrdersListViewProps {
   useUnifiedView?: boolean; // Flag to use unified view
   searchTerm?: string;
   lifecycleFilter?: string;
+  transportFilter?: string;
   onSearchChange?: (value: string) => void;
   onLifecycleFilterChange?: (value: string) => void;
+  onTransportFilterChange?: (value: string) => void;
 }
 
 export default function OrdersListView({
@@ -64,8 +66,10 @@ export default function OrdersListView({
   useUnifiedView = false,
   searchTerm = '',
   lifecycleFilter = 'ALL',
+  transportFilter = 'ALL',
   onSearchChange,
   onLifecycleFilterChange,
+  onTransportFilterChange,
 }: OrdersListViewProps) {
   // Projection mode state
   const [isProjectedMode, setIsProjectedMode] = useState(false);
@@ -150,6 +154,13 @@ export default function OrdersListView({
   if (useUnified && lifecycleFilter !== 'ALL') {
     filteredUnifiedOrders = filteredUnifiedOrders.filter(
       (order) => order.lifecycle === lifecycleFilter
+    );
+  }
+
+  // Apply transport filter
+  if (useUnified && transportFilter !== 'ALL') {
+    filteredUnifiedOrders = filteredUnifiedOrders.filter(
+      (order) => order.transport?.method === transportFilter
     );
   }
 
@@ -396,6 +407,8 @@ export default function OrdersListView({
           onSearchChange={onSearchChange}
           lifecycleFilter={lifecycleFilter}
           onLifecycleFilterChange={onLifecycleFilterChange}
+          transportFilter={transportFilter}
+          onTransportFilterChange={onTransportFilterChange}
         />
 
         {/* Navigation par période (flèches) */}

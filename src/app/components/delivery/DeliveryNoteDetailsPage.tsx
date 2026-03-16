@@ -8,14 +8,17 @@ import {
   CheckCircle2,
   Play,
   XCircle,
+  ShoppingBag,
 } from 'lucide-react';
 import {
   products,
   getDeliveryNote,
+  getSalesOrder,
   shipDeliveryNote,
   cancelDeliveryNote,
   type DeliveryNote,
   type DeliveryNoteStatus,
+  type TransportInfo,
 } from '../../../data/database';
 import {
   getStatusBadgeColor,
@@ -76,6 +79,10 @@ export default function DeliveryNoteDetailsPage({
   const statusColors = getStatusBadgeColor(displayData.status, 'BL');
 
   const isReadOnly = displayData.status === 'SHIPPED';
+
+  // Get transport info from parent sales order
+  const parentSalesOrder = getSalesOrder(displayData.salesOrderId);
+  const transportInfo: TransportInfo | undefined = parentSalesOrder?.transport;
 
   const getProductLotsSummary = (productId: string) => {
     const productLots = displayData.scannedLots.filter(
@@ -171,6 +178,39 @@ export default function DeliveryNoteDetailsPage({
             </div>
           )}
 
+          {/* Transport Info (read-only) */}
+          {transportInfo && (
+            <div className='bg-gray-50 border border-gray-200 rounded-lg p-3 flex gap-3 items-start'>
+              {transportInfo.method === 'LIVRAISON_PROPRE' && (
+                <>
+                  <Truck className='w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0' />
+                  <div>
+                    <p className='text-[13px] font-semibold text-gray-800'>Livraison propre</p>
+                    <p className='text-[11px] text-gray-500 mt-0.5'>L'entreprise assure la livraison</p>
+                  </div>
+                </>
+              )}
+              {transportInfo.method === 'TRANSPORTEUR' && (
+                <>
+                  <Truck className='w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0' />
+                  <div>
+                    <p className='text-[13px] font-semibold text-gray-800'>Transporteur — {transportInfo.carrierName}</p>
+                    <p className='text-[11px] text-gray-500 mt-0.5'>Prise en charge par transporteur externe</p>
+                  </div>
+                </>
+              )}
+              {transportInfo.method === 'RETRAIT_CLIENT' && (
+                <>
+                  <ShoppingBag className='w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0' />
+                  <div>
+                    <p className='text-[13px] font-semibold text-gray-800'>Retrait client</p>
+                    <p className='text-[11px] text-gray-500 mt-0.5'>Le client vient chercher la marchandise</p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Products List */}
           <div>
             <h3 className='text-[12px] font-semibold text-gray-700 mb-2'>
@@ -259,7 +299,7 @@ export default function DeliveryNoteDetailsPage({
               className='w-full py-3 rounded-lg font-bold flex items-center justify-center gap-2 text-[14px] transition-all bg-[#12895a] text-white hover:bg-[#107a4d] shadow-sm'
             >
               <Truck className='w-5 h-5' />
-              Valider le départ camion
+              Confirmer l'envoi
             </button>
             <button
               onClick={handlePrint}

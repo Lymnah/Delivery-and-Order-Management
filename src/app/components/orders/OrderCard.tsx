@@ -9,6 +9,7 @@ import {
   Scale,
   AlertTriangle,
   ShoppingBasket,
+  ShoppingBag,
 } from 'lucide-react';
 import { clientLogos, products } from '../../../data/database';
 import type {
@@ -17,6 +18,7 @@ import type {
   StockStatus,
   SalesOrder,
   DeliveryNote,
+  TransportInfo,
 } from '../../../data/database';
 import { getDaysUntil, getRelativeDateLabel } from '../../utils/dateHelpers';
 import { calculateStockStatus } from '../../utils/unifiedOrderHelpers';
@@ -26,6 +28,32 @@ import {
   getStatusBadgeColor,
   type OrderStatus,
 } from '../../utils/statusHelpers';
+
+function TransportBadge({ transport }: { transport: TransportInfo }) {
+  switch (transport.method) {
+    case 'LIVRAISON_PROPRE':
+      return (
+        <span className='inline-flex items-center gap-0.5 text-blue-600'>
+          <Truck className='w-3 h-3' />
+          <span>Livraison</span>
+        </span>
+      );
+    case 'TRANSPORTEUR':
+      return (
+        <span className='inline-flex items-center gap-0.5 text-purple-600'>
+          <Truck className='w-3 h-3' />
+          <span className='truncate max-w-[70px]'>{transport.carrierName}</span>
+        </span>
+      );
+    case 'RETRAIT_CLIENT':
+      return (
+        <span className='inline-flex items-center gap-0.5 text-amber-600'>
+          <ShoppingBag className='w-3 h-3' />
+          <span>Retrait</span>
+        </span>
+      );
+  }
+}
 
 interface OrderCardProps {
   order?: Order;
@@ -241,7 +269,7 @@ export default function OrderCard({
             {displayOrder.client}
           </h3>
 
-          {/* LIGNE 3 : Métadonnées (Date | ID) */}
+          {/* LIGNE 3 : Métadonnées (Date | ID | Transport) */}
           <div className='flex items-center gap-2 text-[11px] font-medium text-gray-500 mt-0.5'>
             {/* ID (N° 001) */}
             <span className='text-gray-600 font-mono'>{getShortId()}</span>
@@ -256,6 +284,13 @@ export default function OrderCard({
             >
               {relativeDate.label}
             </span>
+            {/* Transport */}
+            {isUnified && unifiedOrder?.transport && (
+              <>
+                <span className='text-gray-300'>|</span>
+                <TransportBadge transport={unifiedOrder.transport} />
+              </>
+            )}
           </div>
 
           {/* LIGNE 4 : Contenu Variable (Alerte / Progress / Poids) */}

@@ -106,6 +106,7 @@ export const mapSalesOrderToUnified = (salesOrder: SalesOrder): UnifiedOrder => 
     sourceId: salesOrder.salesOrderId,
     number: salesOrder.number,
     createdAt: salesOrder.createdAt,
+    transport: salesOrder.transport,
     originalData: salesOrder,
   };
 };
@@ -153,6 +154,7 @@ export const mapDeliveryNoteToUnified = (
     sourceId: deliveryNote.deliveryNoteId,
     number: deliveryNote.number,
     createdAt: deliveryNote.createdAt,
+    transport: salesOrder.transport,
     originalData: deliveryNote,
   };
 };

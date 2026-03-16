@@ -107,6 +107,8 @@ export default function App() {
     setSearchTerm,
     lifecycleFilter,
     setLifecycleFilter,
+    transportFilter,
+    setTransportFilter,
   } = useFilters(now);
   const [showOrderDetailsPage, setShowOrderDetailsPage] = useState(false);
   const [showDeliveryPreparation, setShowDeliveryPreparation] = useState(false);
@@ -706,8 +708,10 @@ export default function App() {
                         today={now}
                         searchTerm={searchTerm}
                         lifecycleFilter={lifecycleFilter}
+                        transportFilter={transportFilter}
                         onSearchChange={setSearchTerm}
                         onLifecycleFilterChange={setLifecycleFilter}
+                        onTransportFilterChange={setTransportFilter}
                         onFilterChange={(filterKey) => {
                           setTimeRange(filterKey);
                           setActiveMode('period');

@@ -10,7 +10,16 @@ interface QuickFiltersProps {
   onSearchChange?: (value: string) => void;
   lifecycleFilter?: string;
   onLifecycleFilterChange?: (value: string) => void;
+  transportFilter?: string;
+  onTransportFilterChange?: (value: string) => void;
 }
+
+const transportOptions = [
+  { key: 'ALL', label: 'Tous transports' },
+  { key: 'LIVRAISON_PROPRE', label: 'Livraison propre' },
+  { key: 'TRANSPORTEUR', label: 'Transporteur' },
+  { key: 'RETRAIT_CLIENT', label: 'Retrait client' },
+];
 
 const lifecycleOptions = [
   { key: 'ALL', label: 'Tous les statuts' },
@@ -29,6 +38,8 @@ export default function QuickFilters({
   onSearchChange,
   lifecycleFilter,
   onLifecycleFilterChange,
+  transportFilter,
+  onTransportFilterChange,
 }: QuickFiltersProps) {
   const filters = [
     { key: 'all' as TimeRange, label: 'Tout' },
@@ -94,6 +105,30 @@ export default function QuickFilters({
                 }`}
               >
                 {lifecycleOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className='absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none' />
+            </div>
+          </>
+        )}
+
+        {onTransportFilterChange && (
+          <>
+            <span className='text-gray-300 text-lg select-none'>·</span>
+            <div className='relative'>
+              <select
+                value={transportFilter || 'ALL'}
+                onChange={(e) => onTransportFilterChange(e.target.value)}
+                className={`appearance-none pl-3 pr-7 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#12895a] ${
+                  (transportFilter || 'ALL') !== 'ALL'
+                    ? 'bg-[#12895a]/10 text-[#12895a] border border-[#12895a]'
+                    : 'bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200'
+                }`}
+              >
+                {transportOptions.map((option) => (
                   <option key={option.key} value={option.key}>
                     {option.label}
                   </option>

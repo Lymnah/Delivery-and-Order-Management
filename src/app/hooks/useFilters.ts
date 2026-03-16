@@ -16,6 +16,7 @@ export const useFilters = (initialDate: Date) => {
   const [activeMode, setActiveMode] = useState<ActiveMode>('period');
   const [searchTerm, setSearchTerm] = useState('');
   const [lifecycleFilter, setLifecycleFilter] = useState('ALL');
+  const [transportFilter, setTransportFilter] = useState('ALL');
 
   const navigatePeriod = (direction: 'prev' | 'next') => {
     if (timeRange === 'today') {
@@ -51,6 +52,8 @@ export const useFilters = (initialDate: Date) => {
     setSearchTerm,
     lifecycleFilter,
     setLifecycleFilter,
+    transportFilter,
+    setTransportFilter,
   };
 };
 

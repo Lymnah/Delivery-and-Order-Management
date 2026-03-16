@@ -15,6 +15,14 @@ import imgTzatziki from '../assets/f4b9c2546699f16007b2437a15c440b7f521c550.png'
 // Types
 export type DocumentType = 'BC' | 'BL';
 
+// Transport types
+export type TransportMethod = 'LIVRAISON_PROPRE' | 'TRANSPORTEUR' | 'RETRAIT_CLIENT';
+
+export interface TransportInfo {
+  method: TransportMethod;
+  carrierName?: string; // Only for TRANSPORTEUR
+}
+
 // ===== STATUS ENUMS =====
 // Sales order statuses (BC - Bon de Commande)
 export type SalesOrderStatus =
@@ -60,6 +68,7 @@ export interface UnifiedOrder {
   sourceId: string; // salesOrderId or deliveryNoteId
   number: string; // Document number for display
   createdAt: Date;
+  transport?: TransportInfo;
   // Reference to original data for actions
   originalData: SalesOrder | DeliveryNote;
 }
@@ -90,6 +99,7 @@ export interface SalesOrder {
   createdAt: Date;
   totalHT: number;
   status: SalesOrderStatus;
+  transport: TransportInfo;
   disputeStatus?: DisputeStatus;
 }
 
@@ -252,6 +262,36 @@ function seededRandom(seed: number): () => number {
   };
 }
 
+// ===== TRANSPORT HELPERS =====
+const carriers = ['Geodis', 'Kuehne+Nagel', 'Chronopost', 'DHL'];
+
+function pickTransport(clientName: string, rand: () => number): TransportInfo {
+  const r = rand();
+  // Client-specific distribution
+  let pTransporteur: number, pLivraison: number;
+  switch (clientName) {
+    case 'Carrefour':
+      pTransporteur = 0.70; pLivraison = 0.90; // 70% transporteur, 20% livraison, 10% retrait
+      break;
+    case 'Auchan':
+      pTransporteur = 0.50; pLivraison = 0.90; // 50% transporteur, 40% livraison, 10% retrait
+      break;
+    case 'Leclerc':
+      pTransporteur = 0.10; pLivraison = 0.50; // 10% transporteur, 40% livraison, 50% retrait
+      break;
+    default:
+      pTransporteur = 0.40; pLivraison = 0.70;
+  }
+
+  if (r < pTransporteur) {
+    return { method: 'TRANSPORTEUR', carrierName: carriers[Math.floor(rand() * carriers.length)] };
+  } else if (r < pLivraison) {
+    return { method: 'LIVRAISON_PROPRE' };
+  } else {
+    return { method: 'RETRAIT_CLIENT' };
+  }
+}
+
 // ===== DEMO DATA INITIALIZATION =====
 /**
  * Initialize demo data with deterministic, realistic business patterns.
@@ -394,6 +434,7 @@ function initializeDemoData() {
         createdAt,
         totalHT: computeTotalHT(items),
         status: 'SHIPPED',
+        transport: pickTransport(profile.name, rand),
       };
       salesOrders.push(bc);
 
@@ -439,6 +480,7 @@ function initializeDemoData() {
       createdAt: addDays(today, -3),
       totalHT: computeTotalHT(items),
       status: 'CONFIRMED',
+      transport: pickTransport('Carrefour', rand),
     });
   }
 
@@ -458,6 +500,7 @@ function initializeDemoData() {
       createdAt: addDays(today, -4),
       totalHT: computeTotalHT(items),
       status: 'CONFIRMED',
+      transport: pickTransport('Auchan', rand),
     });
   }
 
@@ -477,6 +520,7 @@ function initializeDemoData() {
       createdAt: addDays(today, -5),
       totalHT: computeTotalHT(items),
       status: 'CONFIRMED',
+      transport: pickTransport('Leclerc', rand),
     });
   }
 
@@ -497,6 +541,7 @@ function initializeDemoData() {
       createdAt: addDays(today, -4),
       totalHT: computeTotalHT(items),
       status: 'IN_PREPARATION',
+      transport: pickTransport('Carrefour', rand),
     };
     salesOrders.push(bc);
 
@@ -535,6 +580,7 @@ function initializeDemoData() {
       createdAt: addDays(today, -6),
       totalHT: computeTotalHT(items),
       status: 'IN_PREPARATION',
+      transport: pickTransport('Leclerc', rand),
     };
     salesOrders.push(bc);
 
@@ -589,6 +635,7 @@ function initializeDemoData() {
         createdAt,
         totalHT: computeTotalHT(items),
         status: 'CONFIRMED',
+        transport: pickTransport(profile.name, rand),
       });
     }
   }
